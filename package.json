@@ -1,0 +1,19 @@
+{
+  "name": "jsapi",
+  "version": "0.0.0",
+  "description": "",
+  "main": "index.js",
+  "dependencies": {
+    "domino": "^1.0.28",
+    "parsoid": "^0.7.1"
+  },
+  "devDependencies": {
+    "chai": "^3.5.0",
+    "mocha": "^2.5.3"
+  },
+  "scripts": {
+    "test": "mocha --opts tests/mocha.opts tests/"
+  },
+  "author": "",
+  "license": "GPL-2.0+"
+}
