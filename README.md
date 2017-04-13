@@ -9,8 +9,8 @@ Usage of the JavaScript API
 This file describes usage of Parsoid as a standalone wikitext parsing
 package, in the spirit of [`mwparserfromhell`].  This is not the typical
 use case for Parsoid; it is more often used as a network service.
-See [the HTTP API guide](#!/guide/apiuse) or [Parsoid service] on the wiki
-for more details.
+See [the HTTP API guide](https://doc.wikimedia.org/Parsoid/master/#!/guide/apiuse)
+or [Parsoid service] on the wiki for more details.
 
 These examples will use the [`prfun`] library and [ES6 generators] in
 order to fluently express asynchronous operations.  The library also
@@ -50,14 +50,14 @@ As you can see, there is a little bit of boilerplate needed to get the
 asynchronous machinery started.  The body of the `main()` method can
 be replaced with your code.
 
-The `pdoc` variable above holds a [`PDoc`] object, which has
+The `pdoc` variable above holds a `PDoc` object, which has
 helpful methods to filter and manipulate the document.  If you want
 to access the raw [Parsoid DOM], however, it is easily accessible
-via the [`document`](#!/api/PDoc-property-document) property, as shown above,
+via the `document` property, as shown above,
 and all normal DOM manipulation functions can be used on it (Parsoid uses
 [`domino`] to implement these methods).  Be sure to call
-[`update()`](#!/api/PNode-method-update) after any direct DOM manipulation.
-[`PDoc`] is a subclass of [`PNodeList`], which provides a number of
+`update()` after any direct DOM manipulation.
+`PDoc` is a subclass of `PNodeList`, which provides a number of
 useful access and mutation methods -- and if you use these you won't need
 to manually call `update()`.  These provided methods can be quite useful.
 For example:
@@ -92,10 +92,9 @@ Getting nested templates is trivial:
 	  '{{spam}}' ]
 
 You can also pass `{ recursive: false }` to
-[`filterTemplates()`](#!/api/PNodeList-method-filterTemplates) and explore
-templates manually. This is possible because the
-[`get`](#!/api/PTemplate-method-get) method on a
-[`PTemplate`] object returns an object containing further [`PNodeList`]s:
+`filterTemplates()` and explore templates manually. This is possible because
+the `get` method on a `PTemplate` object returns an object containing
+further `PNodeList`s:
 
 	> var text = "{{foo|this {{includes a|template}}}}";
 	> var pdoc = yield Parsoid.parse(text, { pdoc: true });
@@ -112,9 +111,8 @@ templates manually. This is possible because the
 	template
 
 Templates can be easily modified to add, remove, or alter params.
-Templates also have a [`nameMatches()`](#!/api/PTemplate-method-nameMatches)
-method for comparing template names, which takes care of capitalization and
-white space:
+Templates also have a `nameMatches()` method for comparing template names,
+which takes care of capitalization and white space:
 
 	> var text = "{{cleanup}} '''Foo''' is a [[bar]]. {{uncategorized}}";
 	> var pdoc = yield Parsoid.parse(text, { pdoc: true });
@@ -130,15 +128,11 @@ white space:
 	{{cleanup|date = July 2012}} '''Foo''' is a [[bar]]. {{bar-stub}}
 
 At any time you can convert the `pdoc` into HTML conforming to the
-[MediaWiki DOM spec] (by referencing the
-[`document`](#!/api/PDoc-property-document) property) or into wikitext (by
-invoking [`toWikitext()`](#!/api/PNodeList-method-toWikitext), which
-returns a [`Promise`] for the wikitext string).  This allows you
-to save the page using either standard API methods or the RESTBase API
-(once [T101501](https://phabricator.wikimedia.org/T101501) is resolved).
-
-For more tips, check out [PNodeList's full method list](#!/api/PNodeList)
-and the list of [PNode](#!/api/PNode) subclasses.
+[MediaWiki DOM spec] (by referencing the `document` property) or into wikitext
+(by invoking `toWikitext()`, which returns a [`Promise`] for the wikitext
+string).  This allows you to save the page using either standard API methods or
+the RESTBase API (once [T101501](https://phabricator.wikimedia.org/T101501)
+is resolved).
 
 [`mwparserfromhell`]: http://mwparserfromhell.readthedocs.org/en/latest/index.html
 [Parsoid service]: https://www.mediawiki.org/wiki/Parsoid
@@ -148,9 +142,6 @@ and the list of [PNode](#!/api/PNode) subclasses.
 [Parsoid DOM]: http://www.mediawiki.org/wiki/Parsoid/MediaWiki_DOM_spec
 [MediaWiki DOM spec]: http://www.mediawiki.org/wiki/Parsoid/MediaWiki_DOM_spec
 [`domino`]: https://www.npmjs.com/package/domino
-[`PDoc`]: #!/api/PDoc
-[`PNodeList`]: #!/api/PNodeList
-[`PTemplate`]: #!/api/PTemplate
 
 License
 -------
