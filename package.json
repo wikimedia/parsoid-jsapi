@@ -1,7 +1,7 @@
 {
   "name": "jsapi",
-  "version": "0.0.0",
-  "description": "",
+  "version": "0.0.1",
+  "description": "Parsoid JSAPI",
   "main": "index.js",
   "dependencies": {
     "domino": "^1.0.28",
@@ -14,6 +14,6 @@
   "scripts": {
     "test": "mocha --opts tests/mocha.opts tests/"
   },
-  "author": "",
+  "author": "C. Scott Ananian",
   "license": "GPL-2.0+"
 }
