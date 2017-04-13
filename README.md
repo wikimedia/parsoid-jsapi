@@ -22,7 +22,7 @@ a [`Promise`]-aware REPL, that will wait for a promise to be resolved
 before printing its value.  This can be started from the
 shell using:
 
-	node -e 'require("parsoid").repl()'
+	node -e 'require("parsoid-jsapi").repl()'
 
 Use `"./"` instead of `"parsoid"` if you are running this from a
 checked-out repository.  Code examples below which contain lines
@@ -35,7 +35,7 @@ wikitext input):
 
 	#/usr/bin/node --harmony-generators
 	var Promise = require('prfun');
-	var Parsoid = require('parsoid');
+	var Parsoid = require('parsoid-jsapi');
 
 	var main = Promise.async(function*() {
 		var text = "I love wikitext!";
