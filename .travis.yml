@@ -1,0 +1,9 @@
+language: node_js
+
+node_js:
+    # Production
+    - "4"
+    # Next LTS
+    - "6"
+    # From the nvm docs, "this installs the latest version of node".
+    - "node"
