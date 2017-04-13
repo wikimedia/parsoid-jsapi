@@ -1,5 +1,5 @@
 {
-  "name": "jsapi",
+  "name": "parsoid-jsapi",
   "version": "0.0.1",
   "description": "Parsoid JSAPI",
   "main": "index.js",
