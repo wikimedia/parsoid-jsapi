@@ -4,15 +4,25 @@
   "description": "Parsoid JSAPI",
   "main": "index.js",
   "dependencies": {
-    "domino": "^1.0.28",
-    "parsoid": "^0.7.1"
+    "domino": "^2.0.3",
+    "parsoid": "^0.9.0"
   },
   "devDependencies": {
-    "chai": "^3.5.0",
-    "mocha": "^2.5.3"
+    "chai": "^4.1.2",
+    "eslint": "^4.19.1",
+    "eslint-config-node-services": "^2.2.5",
+    "eslint-config-wikimedia": "^0.5.0",
+    "eslint-plugin-jsdoc": "^3.6.3",
+    "jsdoc": "^3.5.5",
+    "jsdoc-wmf-theme": "^0.0.2",
+    "mocha": "^5.1.1"
   },
   "scripts": {
-    "test": "mocha --opts tests/mocha.opts tests/"
+    "doc": "jsdoc -c jsdoc.json",
+    "eslint": "eslint tests index.js jsapi.js",
+    "eslint-fix": "eslint --fix tests index.js jsapi.js",
+    "mocha": "mocha --opts tests/mocha.opts tests/",
+    "test": "npm run eslint && npm run mocha"
   },
   "author": "C. Scott Ananian",
   "license": "GPL-2.0+"

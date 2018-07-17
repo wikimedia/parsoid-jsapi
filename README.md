@@ -125,7 +125,7 @@ which takes care of capitalization and white space:
 	...    }
 	... });
 	> console.log(yield pdoc.toWikitext());
-	{{cleanup|date = July 2012}} '''Foo''' is a [[bar]]. {{bar-stub}}
+	{{cleanup|date=July 2012}} '''Foo''' is a [[bar]]. {{bar-stub}}
 
 At any time you can convert the `pdoc` into HTML conforming to the
 [MediaWiki DOM spec] (by referencing the `document` property) or into wikitext
@@ -146,7 +146,7 @@ is resolved).
 License
 -------
 
-Copyright (c) 2011-2015 Wikimedia Foundation and others.
+Copyright (c) 2011-2018 Wikimedia Foundation and others.
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

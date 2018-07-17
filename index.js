@@ -2,8 +2,7 @@
 
 require('parsoid/core-upgrade.js');
 
-var parseJs = require('parsoid/bin/parse.js');
-var ParsoidConfig = require('parsoid/lib/config/ParsoidConfig.js').ParsoidConfig;
+var parseJs = require('parsoid/lib/parse.js');
 
 var json = require('./package.json');
 var JsApi = require('./jsapi.js');
@@ -61,15 +60,13 @@ var Parsoid = module.exports = {
  * @param {ParsoidConfig} [options.parsoidConfig]
  *    A {@link ParsoidConfig} object to use during parsing.
  *    If not provided one will be constructed using `options.config`.
- * @param {Object} [options.config]
- *    A set of options which will be passed to the {@link ParsoidConfig}
- *    constructor.
  * @return {Promise}
  *   Fulfilled with the result of the parse.
  */
 Parsoid.parse = function(input, options, optCb) {
-	options = options || {};
-	var argv = Object.assign({}, parseJs.defaultOptions, options);
+	var argv = Object.assign({}, {
+		/* default options */
+	}, options || {});
 
 	if (argv.pdoc) {
 		argv.document = true;
@@ -84,33 +81,29 @@ Parsoid.parse = function(input, options, optCb) {
 		argv.wt2html = true;
 	}
 
-	var prefix = argv.prefix || null;
-	var domain = argv.domain || null;
-
-	if (argv.apiURL) {
-		prefix = 'customwiki';
-		domain = null;
-	} else if (!(prefix || domain)) {
-		domain = 'en.wikipedia.org';
-	}
-
-	var parsoidConfig = options.parsoidConfig;
-	if (!parsoidConfig) {
-		// Default setup: Point Parsoid at WMF wikis.
-		parsoidConfig = new ParsoidConfig(options.config || null, { loadWMF: true });
-		parsoidConfig.defaultWiki = prefix || parsoidConfig.reverseMwApiMap.get(domain);
-	}
-	if (argv.pdoc) {
-		parsoidConfig.addHTMLTemplateParameters = true;
-		// Since the jsapi acts directly on our serialized XML, it's heavily
-		// tied to the content version.  Let's be explicit about which one
-		// is acceptable, so that we fail loudly if/when it's no longer
-		// supported.
-		argv.contentversion = '1.3.0';
-
-	}
-	return parseJs.parse(input || '', argv, parsoidConfig, prefix, domain).then(function(res) {
-		return argv.pdoc ? new JsApi.PDoc(res.env, res.out) : res;
+	return parseJs({
+		input: input || '',
+		mode: (
+			argv.wt2html ? 'wt2html' :
+			argv.html2wt ? 'html2wt' :
+			argv.html2html ? 'html2html' :
+			argv.wt2wt ? 'wt2wt' :
+			'<unknown mode>'
+		),
+		parsoidOptions: Object.assign({
+			useWorker: false,
+			addHTMLTemplateParameters: true,
+			loadWMF: true,
+		}, options.parsoidOptions || {}),
+		envOptions: Object.assign({
+			domain: argv.domain || 'en.wikipedia.org',
+			pageName: argv.pageName,
+			wrapSections: true,
+		}, options.envOptions || {}),
+		returnDocument: argv.pdoc || argv.document,
+	}).then(function(res) {
+		// The ability to return as an HTML Document used to be in core :(
+		return argv.pdoc ? new JsApi.PDoc(res.env, res.doc) : res;
 	}).nodify(optCb);
 };
 
