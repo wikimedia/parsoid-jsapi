@@ -1,5 +1,6 @@
 /** Testing the JavaScript API. */
-/*global describe, it*/
+/* global describe, it*/
+
 "use strict";
 
 require('chai').should();
@@ -27,14 +28,14 @@ describe('Parsoid JS API', function() {
 
 describe('Examples from guides/jsapi', function() {
 	it('converts empty wikitext to HTML', function() {
-		return Parsoid.parse('', { pdoc: true}).then(function(pdoc) {
+		return Parsoid.parse('', { pdoc: true }).then(function(pdoc) {
 			pdoc.should.have.property('document');
 			pdoc.document.should.have.property('outerHTML');
 			pdoc.document.body.children.length.should.equal(0);
 		});
 	});
 	it('converts simple wikitext to HTML', function() {
-		return Parsoid.parse('I love wikitext!', { pdoc: true}).then(function(pdoc) {
+		return Parsoid.parse('I love wikitext!', { pdoc: true }).then(function(pdoc) {
 			pdoc.should.have.property('document');
 			pdoc.document.should.have.property('outerHTML');
 		});

@@ -1,8 +1,11 @@
-/*
+/**
  * Handy JavaScript API for Parsoid DOM, inspired by the
  * python `mwparserfromhell` package.
+ * @module
  */
+
 'use strict';
+
 require('parsoid/core-upgrade.js');
 
 // TO DO:
@@ -93,10 +96,7 @@ var toHtmlStr = function(node, v) {
  * useful for extracting and iterating over, for example, all
  * of the templates in the project (via {@link #filterTemplates}).
  * @class PNodeList
- * @alternateClassName Parsoid.PNodeList
- */
-/**
- * @method constructor
+ * @constructor
  * @private
  * @param {PDoc} pdoc The parent document for this {@link PNodeList}.
  * @param {PNode|null} parent A {@link PNode} which will receive updates
@@ -150,14 +150,15 @@ Object.defineProperties(PNodeList.prototype, {
 				return Array.from(this.container.querySelectorAll(selector));
 			}
 			// Implement comment/text node selector the hard way
-			/* jshint bitwise: false */
+			/* eslint-disable no-bitwise */
 			var whatToShow = NodeFilter.SHOW_ELEMENT; // always show templates
 			if (/,COMMENT,/.test(tweakedSelector)) {
-				whatToShow = whatToShow | NodeFilter.SHOW_COMMENT;
+				whatToShow |= NodeFilter.SHOW_COMMENT;
 			}
 			if (/,TEXT,/.test(tweakedSelector)) {
-				whatToShow = whatToShow | NodeFilter.SHOW_TEXT;
+				whatToShow |= NodeFilter.SHOW_TEXT;
 			}
+			/* eslint-enable no-bitwise */
 			var nodeFilter = function(node) {
 				if (node.nodeType !== Node.ELEMENT_NODE) {
 					return NodeFilter.FILTER_ACCEPT;
@@ -377,6 +378,7 @@ Object.defineProperties(PNodeList.prototype, {
 			}
 			var templates = new Set();
 			var result = [];
+			/* eslint-disable no-labels */
 			OUTER: for (var i = 0; i < this.container.childNodes.length; i++) {
 				var node = this.container.childNodes.item(i);
 				if (node.nodeType === Node.TEXT_NODE) {
@@ -415,6 +417,7 @@ Object.defineProperties(PNodeList.prototype, {
 				// Unknown type.
 				result.push(new PNode(this.pdoc, this, node));
 			}
+			/* eslint-enable no-labels */
 			return (this._cachedPNodes = result);
 		},
 	},
@@ -423,14 +426,14 @@ Object.defineProperties(PNodeList.prototype, {
 	 * The number of nodes within the node list.
 	 * @property {Number}
 	 */
-	length: { get: function() { return this.pnodes.length; }, },
+	length: { get: function() { return this.pnodes.length; } },
 
 	/**
 	 * Return the `index`th node within the node list.
 	 * @param {Number} index
 	 * @return {PNode}
 	 */
-	get: { value: function(index) { return this.pnodes[index]; }, },
+	get: { value: function(index) { return this.pnodes[index]; } },
 
 	/**
 	 * Return the index of `target` in the list of nodes, or `-1` if
@@ -536,9 +539,7 @@ PNodeList.fromHTML = function(pdoc, html) {
  * - {@link PTemplate}: templates, like `{{foo|bar}}`
  * - {@link PText}: unformatted text, like `foo`
  * - {@link PWikiLink}: wiki links, like `[[Foo|bar]]`
- */
-/**
- * @method constructor
+ * @constructor
  * @private
  * @param {PDoc} pdoc The parent document for this PNode.
  * @param {PNodeList|null} parent A containing node list which will receive
@@ -578,7 +579,7 @@ Object.defineProperties(PNode.prototype, {
 	 * @private
 	 * @return {PNodeList[]}
 	 */
-	_children: { value: function() { return []; }, },
+	_children: { value: function() { return []; } },
 	/**
 	 * Call {@link #update} after manually mutating the DOM {@link Node}
 	 * associated with this {@link PNode} in order to ensure that any
@@ -655,9 +656,7 @@ var innerAccessor = {
  * PComment represents a hidden HTML comment, like `<!-- fobar -->`.
  * @class PComment
  * @extends PNode
- */
-/**
- * @method constructor
+ * @constructor
  * @private
  * @inheritdoc PNode#constructor
  */
@@ -691,9 +690,7 @@ PComment._selector = 'COMMENT'; // non-standard selector
  * PExtLink represents an external link, like `[http://example.com Example]`.
  * @class PExtLink
  * @extends PNode
- */
-/**
- * @method constructor
+ * @constructor
  * @private
  * @inheritdoc PNode#constructor
  */
@@ -723,7 +720,7 @@ Object.defineProperties(PExtLink.prototype, {
 	 */
 	title: innerAccessor,
 	// XXX include this.url, once it is a PNodeList
-	_children: { value: function() { return [this.title]; }, },
+	_children: { value: function() { return [this.title]; } },
 });
 /**
  * @ignore
@@ -736,9 +733,7 @@ PExtLink._selector = 'a[rel="mw:ExtLink"]';
  * PHeading represents a section heading in wikitext, like `== Foo ==`.
  * @class PHeading
  * @extends PNode
- */
-/**
- * @method constructor
+ * @constructor
  * @private
  * @inheritdoc PNode#constructor
  */
@@ -779,7 +774,7 @@ Object.defineProperties(PHeading.prototype, {
 	 */
 	title: innerAccessor,
 
-	_children: { value: function() { return [this.title]; }, },
+	_children: { value: function() { return [this.title]; } },
 });
 /**
  * @ignore
@@ -792,9 +787,7 @@ PHeading._selector = 'h1,h2,h3,h4,h5,h6';
  * PHtmlEntity represents an HTML entity, like `&nbsp;`.
  * @class PHtmlEntity
  * @extends PNode
- */
-/**
- * @method constructor
+ * @constructor
  * @private
  * @inheritdoc PNode#constructor
  */
@@ -841,9 +834,7 @@ PHtmlEntity._selector = '[typeof="mw:Entity"]';
  * like `[[File:Foobar.jpg|caption]]`.
  * @class PMedia
  * @extends PNode
- */
-/**
- * @method constructor
+ * @constructor
  * @private
  * @inheritdoc PNode#constructor
  */
@@ -853,7 +844,7 @@ PMedia = function PMedia(pdoc, parent, node, opts) {
 util.inherits(PMedia, PNode);
 Object.defineProperties(PMedia.prototype, {
 	// Internal helper: is the outer element a <figure> or a <span>?
-	_isBlock: { get: function() { return this.node.tagName === 'FIGURE'; }, },
+	_isBlock: { get: function() { return this.node.tagName === 'FIGURE'; } },
 	// Internal helper: get at the 'caption' property in the dataMw
 	_caption: {
 		get: function() {
@@ -950,9 +941,7 @@ PMedia._selector = 'figure,[typeof~="mw:Image"]';
  * "invisible" tags like `<p>`.
  * @class PTag
  * @extends PNode
- */
-/**
- * @method constructor
+ * @constructor
  * @private
  * @inheritdoc PNode#constructor
  */
@@ -975,7 +964,7 @@ Object.defineProperties(PTag.prototype, {
 	 */
 	contents: innerAccessor,
 
-	_children: { value: function() { return [this.contents]; }, },
+	_children: { value: function() { return [this.contents]; } },
 });
 /**
  * @ignore
@@ -988,24 +977,21 @@ PTag._selector = '*'; // any otherwise-unmatched element
  * PTemplate represents a wikitext template, like `{{foo}}`.
  * @class PTemplate
  * @extends PNode
- */
-/**
- * @method constructor
+ * @constructor
  * @private
  * @inheritdoc PNode#constructor
  * @param {PDoc} pdoc The parent document for this PNode.
  * @param {PNodeList|null} parent A containing node list which will receive
  *    updates when this {@link PNode} is mutated.
  * @param {Node} node The DOM node.
- * @param {Number} which A single {@link Node} can represent multiple
+ * @param {number} which A single {@link Node} can represent multiple
  *   templates; this parameter serves to distinguish them.
  */
 PTemplate = function PTemplate(pdoc, parent, node, which) {
 	PNode.call(this, pdoc, parent, node, {
 		wtsNodes: function() {
 			// Templates are actually a collection of nodes.
-			return this.parent._querySelectorAll
-				('[about="' + this.node.getAttribute('about') + '"]');
+			return this.parent._querySelectorAll('[about="' + this.node.getAttribute('about') + '"]');
 		},
 	});
 	this.which = which;
@@ -1187,12 +1173,10 @@ PTemplate._selector = '[typeof~="mw:Transclusion"]';
  * corresponding to `"eggs"`.
  *
  * See: {@link PTemplate}
- */
-/**
- * @method constructor
+ * @constructor
  * @private
  * @param {PTemplate} parent The parent template for this parameter.
- * @param {String} k The parameter name.
+ * @param {string} k The parameter name.
  */
 PTemplate.Parameter = function Parameter(parent, k) {
 	var doc = parent.ownerDocument;
@@ -1237,7 +1221,7 @@ Object.defineProperties(PTemplate.Parameter.prototype, {
 	 *   Unnamed parameters are given numeric indexes.
 	 * @readonly
 	 */
-	name: { get: function() { return this._name; }, },
+	name: { get: function() { return this._name; } },
 	/**
 	 * @property {PNodeList|null} key
 	 *   Source nodes corresponding to the parameter name.
@@ -1293,9 +1277,7 @@ Object.defineProperties(PTemplate.Parameter.prototype, {
  * PText represents ordinary unformatted text with no special properties.
  * @class PText
  * @extends PNode
- */
-/**
- * @method constructor
+ * @constructor
  * @private
  * @inheritdoc PNode#constructor
  */
@@ -1342,9 +1324,7 @@ PText._selector = 'TEXT'; // non-standard selector
  * PWikiLink represents an internal wikilink, like `[[Foo|Bar]]`.
  * @class PWikiLink
  * @extends PNode
- */
-/**
- * @method constructor
+ * @constructor
  * @private
  * @inheritdoc PNode#constructor
  */
@@ -1376,7 +1356,7 @@ Object.defineProperties(PWikiLink.prototype, {
 	 */
 	text: innerAccessor,
 
-	_children: { value: function() { return [this.text]; }, },
+	_children: { value: function() { return [this.text]; } },
 });
 /**
  * @ignore

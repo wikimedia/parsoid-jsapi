@@ -1,4 +1,5 @@
 'use strict';
+
 require('parsoid/core-upgrade.js');
 
 var parseJs = require('parsoid/bin/parse.js');
@@ -46,16 +47,16 @@ var Parsoid = module.exports = {
  *        console.log(templates[0].name);
  *     }).done();
  *
- * @param {String} input
+ * @param {string} input
  *    The input wikitext or HTML (depending on conversion direction).
  * @param {Object} options
- * @param {Boolean} [options.document=false]
+ * @param {boolean} [options.document=false]
  *    Return a DOM {@link Document} (instead of a string)
- * @param {Boolean} [options.pdoc=false]
+ * @param {boolean} [options.pdoc=false]
  *    Return a {@link PDoc} object (instead of a string)
- * @param {Boolean} [options.wt2html=true]
+ * @param {boolean} [options.wt2html=true]
  *    Convert wikitext to HTML.
- * @param {Boolean} [options.html2wt=false]
+ * @param {boolean} [options.html2wt=false]
  *    Convert HTML to wikitext.
  * @param {ParsoidConfig} [options.parsoidConfig]
  *    A {@link ParsoidConfig} object to use during parsing.
@@ -97,8 +98,7 @@ Parsoid.parse = function(input, options, optCb) {
 	if (!parsoidConfig) {
 		// Default setup: Point Parsoid at WMF wikis.
 		parsoidConfig = new ParsoidConfig(options.config || null, { loadWMF: true });
-		parsoidConfig.defaultWiki = prefix ? prefix :
-			parsoidConfig.reverseMwApiMap.get(domain);
+		parsoidConfig.defaultWiki = prefix || parsoidConfig.reverseMwApiMap.get(domain);
 	}
 	if (argv.pdoc) {
 		parsoidConfig.addHTMLTemplateParameters = true;
@@ -122,7 +122,7 @@ Parsoid.parse = function(input, options, optCb) {
  * from a string containing wikitext.
  * @param {PDoc} pdoc
  *   The {@link PDoc} which will own the result.
- * @param {String} wikitext
+ * @param {string} wikitext
  *   The wikitext to convert.
  * @param {Object} options
  *   Options which are passed to {@link Parsoid#parse}.
