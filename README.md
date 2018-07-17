@@ -13,9 +13,7 @@ See [the HTTP API guide](https://doc.wikimedia.org/Parsoid/master/#!/guide/apius
 or [Parsoid service] on the wiki for more details.
 
 These examples will use the [`prfun`] library and [ES6 generators] in
-order to fluently express asynchronous operations.  The library also
-exports vanilla [`Promise`]s if you wish to maintain compatibility
-with old versions of `node` at the cost of a little bit of readability.
+order to fluently express asynchronous operations.
 
 Since many methods in the API return [`Promise`]s, we've also provided
 a [`Promise`]-aware REPL, that will wait for a promise to be resolved
@@ -62,14 +60,17 @@ useful access and mutation methods -- and if you use these you won't need
 to manually call `update()`.  These provided methods can be quite useful.
 For example:
 
-	> var text = "I has a template! {{foo|bar|baz|eggs=spam}} See it?\n";
-	> var pdoc = yield Parsoid.parse(text, { pdoc: true });
+	> let text = "I has a template!\n{{foo|bar|baz|eggs=spam}}\nSee it?\n";
+	> let pdoc = yield Parsoid.parse(text, { pdoc: true });
 	> console.log(yield pdoc.toWikitext());
-	I has a template! {{foo|bar|baz|eggs=spam}} See it?
-	> var templates = pdoc.filterTemplates();
+	I has a template!
+	{{foo|bar|baz|eggs=spam}}
+	See it?
+        
+	> let templates = pdoc.filterTemplates();
 	> console.log(yield Promise.map(templates, Parsoid.toWikitext));
 	[ '{{foo|bar|baz|eggs=spam}}' ]
-	> var template = templates[0];
+	> let template = templates[0];
 	> console.log(template.name);
 	foo
 	> template.name = 'notfoo';
@@ -84,8 +85,8 @@ For example:
 
 Getting nested templates is trivial:
 
-	> var text = "{{foo|bar={{baz|{{spam}}}}}}";
-	> var pdoc = yield Parsoid.parse(text, { pdoc: true });
+	> let text = "{{foo|bar={{baz|{{spam}}}}}}";
+	> let pdoc = yield Parsoid.parse(text, { pdoc: true });
 	> console.log(yield Promise.map(pdoc.filterTemplates(), Parsoid.toWikitext));
 	[ '{{foo|bar={{baz|{{spam}}}}}}',
 	  '{{baz|{{spam}}}}',
@@ -96,15 +97,15 @@ You can also pass `{ recursive: false }` to
 the `get` method on a `PTemplate` object returns an object containing
 further `PNodeList`s:
 
-	> var text = "{{foo|this {{includes a|template}}}}";
-	> var pdoc = yield Parsoid.parse(text, { pdoc: true });
-	> var templates = pdoc.filterTemplates({ recursive: false });
+	> let text = "{{foo|this {{includes a|template}}}}";
+	> let pdoc = yield Parsoid.parse(text, { pdoc: true });
+	> let templates = pdoc.filterTemplates({ recursive: false });
 	> console.log(yield Promise.map(templates, Parsoid.toWikitext));
 	[ '{{foo|this {{includes a|template}}}}' ]
-	> var foo = templates[0];
+	> let foo = templates[0];
 	> console.log(yield foo.get(1).value.toWikitext());
 	this {{includes a|template}}
-	> var more = foo.get(1).value.filterTemplates();
+	> let more = foo.get(1).value.filterTemplates();
 	> console.log(yield Promise.map(more, Parsoid.toWikitext));
 	[ '{{includes a|template}}' ]
 	> console.log(yield more[0].get(1).value.toWikitext());
@@ -114,8 +115,8 @@ Templates can be easily modified to add, remove, or alter params.
 Templates also have a `nameMatches()` method for comparing template names,
 which takes care of capitalization and white space:
 
-	> var text = "{{cleanup}} '''Foo''' is a [[bar]]. {{uncategorized}}";
-	> var pdoc = yield Parsoid.parse(text, { pdoc: true });
+	> let text = "{{cleanup}} '''Foo''' is a [[bar]]. {{uncategorized}}";
+	> let pdoc = yield Parsoid.parse(text, { pdoc: true });
 	> pdoc.filterTemplates().forEach(function(template) {
 	...    if (template.nameMatches('Cleanup') && !template.has('date')) {
 	...        template.add('date', 'July 2012');

@@ -11,22 +11,18 @@ require('parsoid/core-upgrade.js');
 // TO DO:
 // extension
 // PExtLink#url PWikiLink#title should handle mw:ExpandedAttrs
-// make separate package?
 
-var util = require('util');
-
-var DOMImpl = require('domino').impl;
-var Node = DOMImpl.Node;
-var NodeFilter = DOMImpl.NodeFilter;
-var DU = require('parsoid/lib/utils/DOMUtils.js').DOMUtils;
-var Promise = require('parsoid/lib/utils/promise.js');
+const DOMImpl = require('domino').impl;
+const { Node, NodeFilter } = DOMImpl;
+const DU = require('parsoid/lib/utils/DOMUtils.js').DOMUtils;
+const Promise = require('parsoid/lib/utils/promise.js');
 
 // Note that the JSAPI exposes data-mw directly as a DOM attribute to
 // allow clients to easily edit it.
 
 // WTS helper
-var wts = function(env, nodes) {
-	var body;
+const wts = Promise.async(function *(env, nodes) {
+	let body;
 	if (nodes.length === 0) {
 		return '';
 	} else if (nodes.length === 1 && DU.isBody(nodes[0])) {
@@ -37,32 +33,33 @@ var wts = function(env, nodes) {
 			body.appendChild(nodes[i].cloneNode(true));
 		}
 	}
-	return env.getContentHandler().fromHTML(env, body, false);
-};
+	return (yield env.getContentHandler().fromHTML(env, body, false));
+});
 
 // toString helper
-var toStringHelper = function(nodes, sizeLimit) {
-	var out;
+const toStringHelper = function(nodes, sizeLimit) {
+	let out;
 	if (sizeLimit === undefined) { sizeLimit = 80; /* characters */ }
 	if (nodes.length === 0) {
 		return '';
 	} else if (nodes.length === 1) {
-		var body = nodes[0].ownerDocument.createElement('body');
+		const body = nodes[0].ownerDocument.createElement('body');
 		body.appendChild(nodes[0].cloneNode(true));
 		out = DU.normalizeOut(body, 'parsoidOnly');
 		if (out.length <= sizeLimit || !DU.isElt(nodes[0])) { return out; }
 		body.firstChild.innerHTML = '...';
 		out = DU.normalizeOut(body, 'parsoidOnly');
 		if (out.length <= sizeLimit) { return out; }
-		var name = nodes[0].nodeName.toLowerCase();
-		var children = nodes[0].childNodes;
+		const name = nodes[0].nodeName.toLowerCase();
+		const children = nodes[0].childNodes;
 		if (children.length === 0) {
 			return '<' + name + ' .../>';
 		} else {
 			return '<' + name + ' ...>...</' + name + '>';
 		}
 	} else {
-		for (var i = 0; i < nodes.length; i++) {
+		out = '';
+		for (let i = 0; i < nodes.length; i++) {
 			out += toStringHelper(
 				[nodes[i]],
 				(sizeLimit - out.length) / (nodes.length - i)
@@ -72,13 +69,10 @@ var toStringHelper = function(nodes, sizeLimit) {
 	}
 };
 
-// Forward declarations of Wrapper classes.
-var PNode, PNodeList, PComment, PExtLink, PHeading, PHtmlEntity, PMedia, PTag, PTemplate, PText, PWikiLink;
-
 // HTML escape helper
-var toHtmlStr = function(node, v) {
+const toHtmlStr = function(node, v) {
 	if (typeof v === 'string') {
-		var div = node.ownerDocument.createElement('div');
+		const div = node.ownerDocument.createElement('div');
 		div.textContent = v;
 		return div.innerHTML;
 	} else if (v instanceof PNodeList) {
@@ -108,22 +102,23 @@ var toHtmlStr = function(node, v) {
  * @param {Function} [opts.update]
  *    A function which will be invoked when {@link #update} is called.
  */
-PNodeList = function PNodeList(pdoc, parent, container, opts) {
-	this.pdoc = pdoc;
-	this.parent = parent;
-	this.container = container;
-	this._update = (opts && opts.update);
-	this._cachedPNodes = null;
-};
-Object.defineProperties(PNodeList.prototype, {
+class PNodeList {
+	constructor(pdoc, parent, container, opts) {
+		this.pdoc = pdoc;
+		this.parent = parent;
+		this.container = container;
+		this._update = (opts && opts.update);
+		this._cachedPNodes = null;
+	}
+
 	/**
 	 * Returns an {@link Array} of the DOM {@link Node}s represented
 	 * by this {@link PNodeList}.
-	 * @property {Node[]}
+	 * @prop {Node[]}
 	 */
-	nodes: {
-		get: function() { return Array.from(this.container.childNodes); },
-	},
+	get nodes() {
+		return Array.from(this.container.childNodes);
+	}
 
 	/**
 	 * Call {@link #update} after manually mutating any of the DOM
@@ -133,83 +128,77 @@ Object.defineProperties(PNodeList.prototype, {
 	 *
 	 * The mutation methods in the {@link PDoc}/{@link PNodeList} API
 	 * automatically call {@link #update} for you when required.
-	 * @method
 	 */
-	update: {
-		value: function() {
-			this._cachedPNodes = null;
-			if (this._update) { this._update(); }
-			if (this.parent) { this.parent.update(); }
-		},
-	},
-	_querySelectorAll: {
-		value: function(selector) {
-			var tweakedSelector = ',' + selector + ',';
-			if (!(/,(COMMENT|TEXT),/.test(tweakedSelector))) {
-				// Use fast native querySelectorAll
-				return Array.from(this.container.querySelectorAll(selector));
+	update() {
+		this._cachedPNodes = null;
+		if (this._update) { this._update(); }
+		if (this.parent) { this.parent.update(); }
+	}
+
+	_querySelectorAll(selector) {
+		const tweakedSelector = ',' + selector + ',';
+		if (!(/,(COMMENT|TEXT),/.test(tweakedSelector))) {
+			// Use fast native querySelectorAll
+			return Array.from(this.container.querySelectorAll(selector));
+		}
+		// Implement comment/text node selector the hard way
+		/* eslint-disable no-bitwise */
+		let whatToShow = NodeFilter.SHOW_ELEMENT; // always show templates
+		if (/,COMMENT,/.test(tweakedSelector)) {
+			whatToShow |= NodeFilter.SHOW_COMMENT;
+		}
+		if (/,TEXT,/.test(tweakedSelector)) {
+			whatToShow |= NodeFilter.SHOW_TEXT;
+		}
+		/* eslint-enable no-bitwise */
+		const nodeFilter = (node) => {
+			if (node.nodeType !== Node.ELEMENT_NODE) {
+				return NodeFilter.FILTER_ACCEPT;
 			}
-			// Implement comment/text node selector the hard way
-			/* eslint-disable no-bitwise */
-			var whatToShow = NodeFilter.SHOW_ELEMENT; // always show templates
-			if (/,COMMENT,/.test(tweakedSelector)) {
-				whatToShow |= NodeFilter.SHOW_COMMENT;
+			if (node.matches(PTemplate._selector)) {
+				return NodeFilter.FILTER_ACCEPT;
 			}
-			if (/,TEXT,/.test(tweakedSelector)) {
-				whatToShow |= NodeFilter.SHOW_TEXT;
+			return NodeFilter.FILTER_SKIP;
+		};
+		const result = [];
+		const includeTemplates =
+			/,\[typeof~="mw:Transclusion"\],/.test(tweakedSelector);
+		const treeWalker = this.pdoc.document.createTreeWalker(
+			this.container, whatToShow, nodeFilter, false
+		);
+		while (treeWalker.nextNode()) {
+			const node = treeWalker.currentNode;
+			// We don't need the extra test for ELEMENT_NODEs yet, since
+			// non-template element nodes will be skipped by the nodeFilter
+			// above. But if we ever extend filter() to be fully generic,
+			// we might need the commented-out portion of this test.
+			if (
+				node.nodeType === Node.ELEMENT_NODE /* &&
+				node.matches(PTemplate._selector) */
+			) {
+				treeWalker.lastChild(); // always skip over all children
+				if (!includeTemplates) {
+					continue; // skip template itself
+				}
 			}
-			/* eslint-enable no-bitwise */
-			var nodeFilter = function(node) {
-				if (node.nodeType !== Node.ELEMENT_NODE) {
-					return NodeFilter.FILTER_ACCEPT;
-				}
-				if (node.matches(PTemplate._selector)) {
-					return NodeFilter.FILTER_ACCEPT;
-				}
-				return NodeFilter.FILTER_SKIP;
-			};
-			var result = [];
-			var includeTemplates =
-				/,\[typeof~="mw:Transclusion"\],/.test(tweakedSelector);
-			var treeWalker = this.pdoc.document.createTreeWalker(
-				this.container, whatToShow, nodeFilter, false
-			);
-			while (treeWalker.nextNode()) {
-				var node = treeWalker.currentNode;
-				// We don't need the extra test for ELEMENT_NODEs yet, since
-				// non-template element nodes will be skipped by the nodeFilter
-				// above. But if we ever extend filter() to be fully generic,
-				// we might need the commented-out portion of this test.
-				if (node.nodeType === Node.ELEMENT_NODE /* &&
-					node.matches(PTemplate._selector) */
-				) {
-					treeWalker.lastChild(); // always skip over all children
-					if (!includeTemplates) {
-						continue; // skip template itself
-					}
-				}
-				result.push(node);
+			result.push(node);
+		}
+		return result;
+	}
+	_templatesForNode(node) {
+		// each Transclusion node could represent multiple templates.
+		const parent = this;
+		const result = [];
+		const parts = DU.getJSONAttribute(node, 'data-mw', {}).parts || [];
+		parts.forEach((part, i) => {
+			if (part.template) {
+				result.push(new PTemplate(parent.pdoc, parent, node, i));
 			}
-			return result;
-		},
-	},
-	_templatesForNode: {
-		value: function(node) {
-			// each Transclusion node could represent multiple templates.
-			var parent = this;
-			var result = [];
-			var parts = DU.getJSONAttribute(node, 'data-mw', {}).parts || [];
-			parts.forEach(function(part, i) {
-				if (part.template) {
-					result.push(new PTemplate(parent.pdoc, parent, node, i));
-				}
-			});
-			return result;
-		},
-	},
+		});
+		return result;
+	}
 
 	/**
-	 * @method
 	 * @private
 	 * @param {Array} result
 	 *   A result array to append new items to as they are found
@@ -221,40 +210,37 @@ Object.defineProperties(PNodeList.prototype, {
 	 * @param {boolean} [opts.recursive]
 	 *    Set to `false` to avoid recursing into templates.
 	 */
-	_filter: {
-		value: function(result, selector, func, opts) {
-			var self = this;
-			var recursive = (opts && opts.recursive) !== false;
-			var tSelector = PTemplate._selector;
-			if (selector) {
-				tSelector += ',' + selector;
-			}
-			this._querySelectorAll(tSelector).forEach(function(node) {
-				var isTemplate = node.nodeType === Node.ELEMENT_NODE &&
-					node.matches(PTemplate._selector);
-				if (isTemplate) {
-					self._templatesForNode(node).forEach(function(t) {
-						if (!selector) {
-							result.push(t);
-						}
-						if (recursive) {
-							t.params.forEach(function(k) {
-								var td = t.get(k);
-								['key', 'value'].forEach(function(prop) {
-									if (td[prop]) {
-										td[prop]._filter(result, selector, func, opts);
-									}
-								});
+	_filter(result, selector, func, opts) {
+		const recursive = (opts && opts.recursive) !== false;
+		let tSelector = PTemplate._selector;
+		if (selector) {
+			tSelector += ',' + selector;
+		}
+		this._querySelectorAll(tSelector).forEach((node) => {
+			const isTemplate = node.nodeType === Node.ELEMENT_NODE &&
+				node.matches(PTemplate._selector);
+			if (isTemplate) {
+				this._templatesForNode(node).forEach((t) => {
+					if (!selector) {
+						result.push(t);
+					}
+					if (recursive) {
+						t.params.forEach((k) => {
+							const td = t.get(k);
+							['key', 'value'].forEach((prop) => {
+								if (td[prop]) {
+									td[prop]._filter(result, selector, func, opts);
+								}
 							});
-						}
-					});
-				} else {
-					func(result, self, node, opts);
-				}
-			});
-			return result;
-		},
-	},
+						});
+					}
+				});
+			} else {
+				func(result, this, node, opts);
+			}
+		});
+		return result;
+	}
 
 	/**
 	 * Return an array of {@link PComment} representing comments
@@ -262,13 +248,11 @@ Object.defineProperties(PNodeList.prototype, {
 	 * @inheritdoc #_filter
 	 * @return {PComment[]}
 	 */
-	filterComments: {
-		value: function(opts) {
-			return this._filter([], PComment._selector, function(r, parent, node) {
-				r.push(new PComment(parent.pdoc, parent, node));
-			}, opts);
-		},
-	},
+	filterComments(opts) {
+		return this._filter([], PComment._selector, (r, parent, node) => {
+			r.push(new PComment(parent.pdoc, parent, node));
+		}, opts);
+	}
 
 	/**
 	 * Return an array of {@link PExtLink} representing external links
@@ -276,13 +260,11 @@ Object.defineProperties(PNodeList.prototype, {
 	 * @inheritdoc #_filter
 	 * @return {PExtLink[]}
 	 */
-	filterExtLinks: {
-		value: function(opts) {
-			return this._filter([], PExtLink._selector, function(r, parent, node) {
-				r.push(new PExtLink(parent.pdoc, parent, node));
-			}, opts);
-		},
-	},
+	filterExtLinks(opts) {
+		return this._filter([], PExtLink._selector, (r, parent, node) => {
+			r.push(new PExtLink(parent.pdoc, parent, node));
+		}, opts);
+	}
 
 	/**
 	 * Return an array of {@link PHeading} representing headings
@@ -290,13 +272,11 @@ Object.defineProperties(PNodeList.prototype, {
 	 * @inheritdoc #_filter
 	 * @return {PHeading[]}
 	 */
-	filterHeadings: {
-		value: function(opts) {
-			return this._filter([], PHeading._selector, function(r, parent, node) {
-				r.push(new PHeading(parent.pdoc, parent, node));
-			}, opts);
-		},
-	},
+	filterHeadings(opts) {
+		return this._filter([], PHeading._selector, (r, parent, node) => {
+			r.push(new PHeading(parent.pdoc, parent, node));
+		}, opts);
+	}
 
 	/**
 	 * Return an array of {@link PHtmlEntity} representing HTML entities
@@ -304,13 +284,11 @@ Object.defineProperties(PNodeList.prototype, {
 	 * @inheritdoc #_filter
 	 * @return {PHtmlEntity[]}
 	 */
-	filterHtmlEntities: {
-		value: function(opts) {
-			return this._filter([], PHtmlEntity._selector, function(r, parent, node) {
-				r.push(new PHtmlEntity(parent.pdoc, parent, node));
-			}, opts);
-		},
-	},
+	filterHtmlEntities(opts) {
+		return this._filter([], PHtmlEntity._selector, (r, parent, node) => {
+			r.push(new PHtmlEntity(parent.pdoc, parent, node));
+		}, opts);
+	}
 
 	/**
 	 * Return an array of {@link PMedia} representing images or other
@@ -318,13 +296,11 @@ Object.defineProperties(PNodeList.prototype, {
 	 * @inheritdoc #_filter
 	 * @return {PMedia[]}
 	 */
-	filterMedia: {
-		value: function(opts) {
-			return this._filter([], PMedia._selector, function(r, parent, node) {
-				r.push(new PMedia(parent.pdoc, parent, node));
-			}, opts);
-		},
-	},
+	filterMedia(opts) {
+		return this._filter([], PMedia._selector, (r, parent, node) => {
+			r.push(new PMedia(parent.pdoc, parent, node));
+		}, opts);
+	}
 
 	/**
 	 * Return an array of {@link PTemplate} representing templates
@@ -332,11 +308,9 @@ Object.defineProperties(PNodeList.prototype, {
 	 * @inheritdoc #_filter
 	 * @return {PTemplate[]}
 	 */
-	filterTemplates: {
-		value: function(opts) {
-			return this._filter([], null, null, opts);
-		},
-	},
+	filterTemplates(opts) {
+		return this._filter([], null, null, opts);
+	}
 
 	/**
 	 * Return an array of {@link PText} representing plain text
@@ -344,13 +318,11 @@ Object.defineProperties(PNodeList.prototype, {
 	 * @inheritdoc #_filter
 	 * @return {PText[]}
 	 */
-	filterText: {
-		value: function(opts) {
-			return this._filter([], PText._selector, function(r, parent, node) {
-				r.push(new PText(parent.pdoc, parent, node));
-			}, opts);
-		},
-	},
+	filterText(opts) {
+		return this._filter([], PText._selector, (r, parent, node) => {
+			r.push(new PText(parent.pdoc, parent, node));
+		}, opts);
+	}
 
 	/**
 	 * Return an array of {@link PWikiLink} representing wiki links
@@ -358,82 +330,78 @@ Object.defineProperties(PNodeList.prototype, {
 	 * @inheritdoc #_filter
 	 * @return {PWikiLink[]}
 	 */
-	filterWikiLinks: {
-		value: function(opts) {
-			return this._filter([], PWikiLink._selector, function(r, parent, node) {
-				r.push(new PWikiLink(parent.pdoc, parent, node));
-			}, opts);
-		},
-	},
+	filterWikiLinks(opts) {
+		return this._filter([], PWikiLink._selector, (r, parent, node) => {
+			r.push(new PWikiLink(parent.pdoc, parent, node));
+		}, opts);
+	}
 
 	/**
 	 * Internal list of PNodes in this list.
-	 * @property {PNode[]}
+	 * @prop {PNode[]}
 	 * @private
 	 */
-	pnodes: {
-		get: function() {
-			if (this._cachedPNodes !== null) {
-				return this._cachedPNodes;
+	get pnodes() {
+		if (this._cachedPNodes !== null) {
+			return this._cachedPNodes;
+		}
+		const templates = new Set();
+		const result = [];
+		/* eslint-disable no-labels */
+		OUTER: for (let i = 0; i < this.container.childNodes.length; i++) {
+			const node = this.container.childNodes.item(i);
+			if (node.nodeType === Node.TEXT_NODE) {
+				result.push(new PText(this.pdoc, this, node));
+				continue;
 			}
-			var templates = new Set();
-			var result = [];
-			/* eslint-disable no-labels */
-			OUTER: for (var i = 0; i < this.container.childNodes.length; i++) {
-				var node = this.container.childNodes.item(i);
-				if (node.nodeType === Node.TEXT_NODE) {
-					result.push(new PText(this.pdoc, this, node));
+			if (node.nodeType === Node.COMMENT_NODE) {
+				result.push(new PComment(this.pdoc, this, node));
+				continue;
+			}
+			if (node.nodeType === Node.ELEMENT_NODE) {
+				// Note: multiple PTemplates per Node, and possibly
+				// multiple Nodes per PTemplate.
+				if (node.matches(PTemplate._selector)) {
+					templates.add(node.getAttribute('about'));
+					this._templatesForNode(node).forEach((t) => {
+						result.push(t);
+					});
+					continue;
+				} else if (templates.has(node.getAttribute('about'))) {
 					continue;
 				}
-				if (node.nodeType === Node.COMMENT_NODE) {
-					result.push(new PComment(this.pdoc, this, node));
-					continue;
-				}
-				if (node.nodeType === Node.ELEMENT_NODE) {
-					// Note: multiple PTemplates per Node, and possibly
-					// multiple Nodes per PTemplate.
-					if (node.matches(PTemplate._selector)) {
-						templates.add(node.getAttribute('about'));
-						this._templatesForNode(node).forEach(function(t) {
-							result.push(t);
-						});
-						continue;
-					} else if (templates.has(node.getAttribute('about'))) {
-						continue;
-					}
-					// PTag is the catch-all; it should always be last.
-					var which = [
-						PExtLink, PHeading, PHtmlEntity, PMedia, PWikiLink,
-						PTag,
-					];
-					for (var j = 0; j < which.length; j++) {
-						var Ty = which[j];
-						if (node.matches(Ty._selector)) {
-							result.push(new Ty(this.pdoc, this, node));
-							continue OUTER;
-						}
+				// PTag is the catch-all; it should always be last.
+				const which = [
+					PExtLink, PHeading, PHtmlEntity, PMedia, PWikiLink,
+					PTag,
+				];
+				for (let j = 0; j < which.length; j++) {
+					const Ty = which[j];
+					if (node.matches(Ty._selector)) {
+						result.push(new Ty(this.pdoc, this, node));
+						continue OUTER;
 					}
 				}
-				// Unknown type.
-				result.push(new PNode(this.pdoc, this, node));
 			}
-			/* eslint-enable no-labels */
-			return (this._cachedPNodes = result);
-		},
-	},
+			// Unknown type.
+			result.push(new PNode(this.pdoc, this, node));
+		}
+		/* eslint-enable no-labels */
+		return (this._cachedPNodes = result);
+	}
 
 	/**
 	 * The number of nodes within the node list.
-	 * @property {Number}
+	 * @prop {number}
 	 */
-	length: { get: function() { return this.pnodes.length; } },
+	get length() { return this.pnodes.length; }
 
 	/**
 	 * Return the `index`th node within the node list.
-	 * @param {Number} index
+	 * @param {number} index
 	 * @return {PNode}
 	 */
-	get: { value: function(index) { return this.pnodes[index]; } },
+	get(index) { return this.pnodes[index]; }
 
 	/**
 	 * Return the index of `target` in the list of nodes, or `-1` if
@@ -448,77 +416,69 @@ Object.defineProperties(PNodeList.prototype, {
 	 * at.
 	 * @param {PNode|Node} target
 	 * @param {Object} [options]
-	 * @param {Boolean} [options.recursive=false]
-	 * @param {Number} [options.fromIndex=0]
+	 * @param {boolean} [options.recursive=false]
+	 * @param {number} [options.fromIndex=0]
 	 */
-	indexOf: {
-		value: function(target, options) {
-			var recursive = Boolean(options && options.recursive);
-			var fromIndex = Number(options && options.fromIndex) || 0;
-			var child, children;
-			var i, j;
-			if (target instanceof PNode) {
-				target = target.node;
+	indexOf(target, options) {
+		const recursive = Boolean(options && options.recursive);
+		const fromIndex = Number(options && options.fromIndex) || 0;
+		let child, children;
+		let i, j;
+		if (target instanceof PNode) {
+			target = target.node;
+		}
+		for (i = fromIndex; i < this.length; i++) {
+			child = this.get(i);
+			if (child.matches(target)) {
+				return i;
 			}
-			for (i = fromIndex; i < this.length; i++) {
-				child = this.get(i);
-				if (child.matches(target)) {
-					return i;
-				}
-				if (recursive) {
-					children = child._children();
-					for (j = 0; j < children.length; j++) {
-						if (children[j].indexOf(target, options) !== -1) {
-							return i;
-						}
+			if (recursive) {
+				children = child._children();
+				for (j = 0; j < children.length; j++) {
+					if (children[j].indexOf(target, options) !== -1) {
+						return i;
 					}
 				}
 			}
-			return -1;
-		},
-	},
+		}
+		return -1;
+	}
 
 	/**
 	 * Return a string representing the contents of this object
 	 * as HTML conforming to the
 	 * [MediaWiki DOM specification](https://www.mediawiki.org/wiki/Parsoid/MediaWiki_DOM_spec).
-	 * @return {String}
+	 * @return {string}
 	 */
-	toHtml: {
-		value: function() {
-			return this.container.innerHTML;
-		},
-	},
+	toHtml() {
+		return this.container.innerHTML;
+	}
 
 	/**
 	 * Return a promise for a string representing the contents of this
 	 * object as wikitext.
 	 * @return {Promise}
 	 */
-	toWikitext: {
-		value: Promise.method(function() {
-			return wts(this.pdoc.env, this.nodes);
-		}),
-	},
+	toWikitext() {
+		return wts(this.pdoc.env, this.nodes);
+	}
 
 	/**
 	 * Return a string representing the contents of this object for
 	 * debugging.  Some contents may be elided.
-	 * @return {String}
+	 * @return {string}
 	 */
-	toString: {
-		value: function() {
-			return toStringHelper(this.nodes);
-		},
-	},
-});
+	toString() {
+		return toStringHelper(this.nodes);
+	}
+}
 /**
  * Create a {@link PNodeList} from a string containing HTML.
  * @return {PNodeList}
  * @static
  */
 PNodeList.fromHTML = function(pdoc, html) {
-	var div = pdoc.document.createElement('div');
+	const div = pdoc.document.createElement('div');
 	div.innerHTML = html;
 	return new PNodeList(pdoc, null, div);
 };
@@ -552,34 +512,34 @@ PNodeList.fromHTML = function(pdoc, html) {
  *   A function returning an array of {@link Node}s which can tweak the
  *   portion of the document serialized by {@link #toWikitext}.
  */
-PNode = function PNode(pdoc, parent, node, opts) {
-	/** @property {PDoc} pdoc The parent document for this {@link PNode}. */
-	this.pdoc = pdoc;
-	this.parent = parent;
-	/** @property {Node} node The underlying DOM {@link Node}. */
-	this.node = node;
-	this._update = (opts && opts.update);
-	this._wtsNodes = (opts && opts.wtsNodes);
-};
-Object.defineProperties(PNode.prototype, {
-	ownerDocument: {
-		get: function() { return this.node.ownerDocument; },
-	},
-	dataMw: {
-		get: function() {
-			return DU.getJSONAttribute(this.node, 'data-mw', {});
-		},
-		set: function(v) {
-			DU.setJSONAttribute(this.node, 'data-mw', v);
-			this.update();
-		},
-	},
+class PNode {
+	constructor(pdoc, parent, node, opts) {
+		/** @prop {PDoc} pdoc The parent document for this {@link PNode}. */
+		this.pdoc = pdoc;
+		this.parent = parent;
+		/** @prop {Node} node The underlying DOM {@link Node}. */
+		this.node = node;
+		this._update = (opts && opts.update);
+		this._wtsNodes = (opts && opts.wtsNodes);
+	}
+
+	get ownerDocument() { return this.node.ownerDocument; }
+
+	get dataMw() {
+		return DU.getJSONAttribute(this.node, 'data-mw', {});
+	}
+	set dataMw(v) {
+		DU.setJSONAttribute(this.node, 'data-mw', v);
+		this.update();
+	}
+
 	/**
 	 * Internal helper: enumerate all PNodeLists contained within this node.
 	 * @private
 	 * @return {PNodeList[]}
 	 */
-	_children: { value: function() { return []; } },
+	_children() { return []; }
+
 	/**
 	 * Call {@link #update} after manually mutating the DOM {@link Node}
 	 * associated with this {@link PNode} in order to ensure that any
@@ -587,69 +547,57 @@ Object.defineProperties(PNode.prototype, {
 	 *
 	 * The mutation methods in the API automatically call {@link #update}
 	 * for you when required.
-	 * @method
 	 */
-	update: {
-		value: function() {
-			if (this._update) { this._update(); }
-			if (this.parent) { this.parent.update(); }
-		},
-	},
+	update() {
+		if (this._update) { this._update(); }
+		if (this.parent) { this.parent.update(); }
+	}
+
 	/**
 	 * Returns true if the `target` matches this node.  By default a
 	 * node matches only if its #node is strictly equal to the target
 	 * or the target's #node.  Subclasses can override this to provide
 	 * more flexible matching: for example see {@link PText#matches}.
 	 * @param {Node|PNode} target
-	 * @return {Boolean} true if the target matches this node, false otherwise.
+	 * @return {boolean} true if the target matches this node, false otherwise.
 	 */
-	matches: {
-		value: function(target) {
-			return (target === this) || (target === this.node) ||
-				(target instanceof PNode && target.node === this.node);
-		},
-	},
+	matches(target) {
+		return (target === this) || (target === this.node) ||
+			(target instanceof PNode && target.node === this.node);
+	}
+
 	/**
 	 * @inheritdoc PNodeList#toHtml
-	 * @method
 	 */
-	toHtml: {
-		value: function() {
-			var nodes = this._wtsNodes ? this._wtsNodes() : [ this.node ];
-			return nodes.map(function(n) { return n.outerHTML; }).join('');
-		},
-	},
+	toHtml() {
+		const nodes = this._wtsNodes ? this._wtsNodes() : [ this.node ];
+		return nodes.map(function(n) { return n.outerHTML; }).join('');
+	}
+
 	/**
 	 * @inheritdoc PNodeList#toWikitext
-	 * @method
 	 */
-	toWikitext: {
-		value: Promise.method(function() {
-			var nodes = this._wtsNodes ? this._wtsNodes() : [ this.node ];
-			return wts(this.pdoc.env, nodes);
-		}),
-	},
+	toWikitext() {
+		const nodes = this._wtsNodes ? this._wtsNodes() : [ this.node ];
+		return wts(this.pdoc.env, nodes);
+	}
+
 	/**
 	 * @inheritdoc PNodeList#toString
-	 * @method
 	 */
-	toString: {
-		value: function() {
-			var nodes = this._wtsNodes ? this._wtsNodes() : [ this.node ];
-			return toStringHelper(nodes);
-		},
-	},
-});
+	toString() {
+		const nodes = this._wtsNodes ? this._wtsNodes() : [ this.node ];
+		return toStringHelper(nodes);
+	}
+}
 
 // Helper: getter and setter for the inner contents of a node.
-var innerAccessor = {
-	get: function() {
-		return new PNodeList(this.pdoc, this, this.node);
-	},
-	set: function(v) {
-		this.node.innerHTML = toHtmlStr(this.node, v);
-		this.update();
-	},
+const innerAccessorGet = function(self) {
+	return new PNodeList(self.pdoc, self, self.node);
+};
+const innerAccessorSet = function(self, v) {
+	self.node.innerHTML = toHtmlStr(self.node, v);
+	self.update();
 };
 
 /**
@@ -660,25 +608,20 @@ var innerAccessor = {
  * @private
  * @inheritdoc PNode#constructor
  */
-PComment = function PComment(pdoc, parent, node, opts) {
-	PNode.call(this, pdoc, parent, node, opts);
-};
-util.inherits(PComment, PNode);
-Object.defineProperties(PComment.prototype, {
+class PComment extends PNode {
+
 	/**
 	 * The hidden text contained between `<!--` and `-->`.
-	 * @property {String}
+	 * @prop {string}
 	 */
-	contents: {
-		get: function() {
-			return DU.decodeComment(this.node.data);
-		},
-		set: function(v) {
-			this.node.data = DU.encodeComment(v);
-			this.update();
-		},
-	},
-});
+	get contents() {
+		return DU.decodeComment(this.node.data);
+	}
+	set contents(v) {
+		this.node.data = DU.encodeComment(v);
+		this.update();
+	}
+}
 /**
  * @ignore
  * @static
@@ -694,34 +637,33 @@ PComment._selector = 'COMMENT'; // non-standard selector
  * @private
  * @inheritdoc PNode#constructor
  */
-PExtLink = function PExtLink(pdoc, parent, node, opts) {
-	PNode.call(this, pdoc, parent, node, opts);
-};
-util.inherits(PExtLink, PNode);
-Object.defineProperties(PExtLink.prototype, {
+class PExtLink extends PNode {
+
 	/**
 	 * The URL of the link target.
-	 * @property {String}
+	 * @prop {string}
 	 */
-	url: {
+	get url() {
 		// XXX url should be a PNodeList, but that requires handling
 		// typeof="mw:ExpandedAttrs"
-		get: function() {
-			return this.node.getAttribute('href');
-		},
-		set: function(v) {
-			this.node.setAttribute('href', v);
-		},
-	},
+		return this.node.getAttribute('href');
+	}
+	set url(v) {
+		this.node.setAttribute('href', v);
+	}
+
 	/**
 	 * The link title, as a {@link PNodeList}.
 	 * You can assign a String, Node, or PNodeList to mutate the title.
-	 * @property {PNodeList}
+	 * @prop {PNodeList}
 	 */
-	title: innerAccessor,
+	get title() { return innerAccessorGet(this); }
+	set title(v) { innerAccessorSet(this, v); }
+
 	// XXX include this.url, once it is a PNodeList
-	_children: { value: function() { return [this.title]; } },
-});
+	_children() { return [this.title]; }
+}
+
 /**
  * @ignore
  * @static
@@ -737,45 +679,42 @@ PExtLink._selector = 'a[rel="mw:ExtLink"]';
  * @private
  * @inheritdoc PNode#constructor
  */
-PHeading = function PHeading(pdoc, parent, node, opts) {
-	PNode.call(this, pdoc, parent, node, opts);
-};
-util.inherits(PHeading, PNode);
-Object.defineProperties(PHeading.prototype, {
+class PHeading extends PNode {
+
 	/**
 	 * The heading level, as an integer between 1 and 6 inclusive.
-	 * @property {Number}
+	 * @prop {number}
 	 */
-	level: {
-		get: function() {
-			return +this.node.nodeName.slice(1);
-		},
-		set: function(v) {
-			v = +v;
-			if (v === this.level) {
-				return;
-			} else if (v >= 1 && v <= 6) {
-				var nh = this.ownerDocument.createElement('h' + v);
-				while (this.node.firstChild !== null) {
-					nh.appendChild(this.node.firstChild);
-				}
-				this.node.parentNode.replaceChild(nh, this.node);
-				this.node = nh;
-				this.update();
-			} else {
-				throw new Error("Level must be between 1 and 6, inclusive.");
+	get level() {
+		return +this.node.nodeName.slice(1);
+	}
+	set level(v) {
+		v = +v;
+		if (v === this.level) {
+			return;
+		} else if (v >= 1 && v <= 6) {
+			const nh = this.ownerDocument.createElement('h' + v);
+			while (this.node.firstChild !== null) {
+				nh.appendChild(this.node.firstChild);
 			}
-		},
-	},
+			this.node.parentNode.replaceChild(nh, this.node);
+			this.node = nh;
+			this.update();
+		} else {
+			throw new Error("Level must be between 1 and 6, inclusive.");
+		}
+	}
+
 	/**
 	 * The title of the heading, as a {@link PNodeList}.
 	 * You can assign a String, Node, or PNodeList to mutate the title.
-	 * @property {PNodeList}
+	 * @prop {PNodeList}
 	 */
-	title: innerAccessor,
+	get title() { return innerAccessorGet(this); }
+	set title(v) { innerAccessorSet(this, v); }
 
-	_children: { value: function() { return [this.title]; } },
-});
+	_children() { return [this.title]; }
+}
 /**
  * @ignore
  * @static
@@ -791,37 +730,29 @@ PHeading._selector = 'h1,h2,h3,h4,h5,h6';
  * @private
  * @inheritdoc PNode#constructor
  */
-PHtmlEntity = function PHtmlEntity(pdoc, parent, node, opts) {
-	PNode.call(this, pdoc, parent, node, opts);
-};
-util.inherits(PHtmlEntity, PNode);
-Object.defineProperties(PHtmlEntity.prototype, {
+class PHtmlEntity extends PNode {
+
 	/**
 	 * The character represented by the HTML entity.
-	 * @property {String}
+	 * @prop {string}
 	 */
-	normalized: {
-		get: function() { return this.node.textContent; },
-		set: function(v) {
-			this.node.textContent = v;
-			this.node.removeAttribute('data-parsoid');
-			this.update();
-		},
-	},
+	get normalized() { return this.node.textContent; }
+	set normalized(v) {
+		this.node.textContent = v;
+		this.node.removeAttribute('data-parsoid');
+		this.update();
+	}
+
 	/**
 	 * Extends {@link PNode#matches} to allow a target string to match
 	 * if it matches this node's #normalized character.
-	 * @method
 	 * @inheritdoc PNode#matches
-	 * @param {Node|PNode|String} target
+	 * @param {Node|PNode|string} target
 	 */
-	matches: {
-		value: function(target) {
-			return PNode.prototype.matches.call(this, target) ||
-				this.normalized === target;
-		},
-	},
-});
+	matches(target) {
+		return super.matches(target) || this.normalized === target;
+	}
+}
 /**
  * @ignore
  * @static
@@ -838,95 +769,86 @@ PHtmlEntity._selector = '[typeof="mw:Entity"]';
  * @private
  * @inheritdoc PNode#constructor
  */
-PMedia = function PMedia(pdoc, parent, node, opts) {
-	PNode.call(this, pdoc, parent, node, opts);
-};
-util.inherits(PMedia, PNode);
-Object.defineProperties(PMedia.prototype, {
+class PMedia extends PNode {
+
 	// Internal helper: is the outer element a <figure> or a <span>?
-	_isBlock: { get: function() { return this.node.tagName === 'FIGURE'; } },
+	get _isBlock() { return this.node.tagName === 'FIGURE'; }
 	// Internal helper: get at the 'caption' property in the dataMw
-	_caption: {
-		get: function() {
-			var c = this.dataMw.caption;
-			return c === undefined ? null : c;
-		},
-		set: function(v) {
-			var dmw = this.dataMw;
-			if (v === undefined || v === null) {
-				delete dmw.caption;
-			} else {
-				dmw.caption = v;
-			}
-			this.dataMw = dmw;
-		},
-	},
+	get _caption() {
+		const c = this.dataMw.caption;
+		return c === undefined ? null : c;
+	}
+	set _caption(v) {
+		const dmw = this.dataMw;
+		if (v === undefined || v === null) {
+			delete dmw.caption;
+		} else {
+			dmw.caption = v;
+		}
+		this.dataMw = dmw;
+	}
 
 	/**
 	 * The caption of the image or media file, or `null` if not present.
 	 * You can assign `null`, a String, Node, or PNodeList to mutate the
 	 * contents.
-	 * @property {PNodeList|null}
+	 * @prop {PNodeList|null}
 	 */
-	caption: {
-		get: function() {
-			var c, captionDiv;
-			// Note that _cachedNodeList is null if caption is missing.
-			if (this._cachedNodeList === undefined) {
-				if (this._isBlock) {
-					c = this.node.firstChild.nextSibling;
-					this._cachedNodeList =
-						c ? new PNodeList(this.pdoc, this, c) : null;
+	get caption() {
+		let c, captionDiv;
+		// Note that _cachedNodeList is null if caption is missing.
+		if (this._cachedNodeList === undefined) {
+			if (this._isBlock) {
+				c = this.node.firstChild.nextSibling;
+				this._cachedNodeList =
+					c ? new PNodeList(this.pdoc, this, c) : null;
+			} else {
+				c = this._caption;
+				if (c === null) {
+					this._cachedNodeList = null;
 				} else {
-					c = this._caption;
-					if (c === null) {
-						this._cachedNodeList = null;
-					} else {
-						captionDiv = this.ownerDocument.createElement('div');
-						captionDiv.innerHTML = c;
-						this._cachedNodeList = new PNodeList(
-							this.pdoc, this, captionDiv, {
-								update: function() {
-									this.parent._caption = this.container.innerHTML;
-								},
-							});
-					}
+					captionDiv = this.ownerDocument.createElement('div');
+					captionDiv.innerHTML = c;
+					this._cachedNodeList = new PNodeList(
+						this.pdoc, this, captionDiv, {
+							update: function() {
+								this.parent._caption = this.container.innerHTML;
+							},
+						});
 				}
 			}
-			return this._cachedNodeList;
-		},
-		set: function(v) {
-			this._cachedNodeList = undefined;
-			if (this._isBlock) {
-				var c = this.node.firstChild.nextSibling;
-				if (v === null || v === undefined) {
-					if (c) {
-						this.node.removeChild(c);
-						this.update();
-					}
-				} else {
-					if (!c) {
-						c = this.ownerDocument.createElement('figcaption');
-						this.node.appendChild(c);
-					}
-					c.innerHTML = toHtmlStr(c, v);
+		}
+		return this._cachedNodeList;
+	}
+	set caption(v) {
+		this._cachedNodeList = undefined;
+		if (this._isBlock) {
+			let c = this.node.firstChild.nextSibling;
+			if (v === null || v === undefined) {
+				if (c) {
+					this.node.removeChild(c);
 					this.update();
 				}
 			} else {
-				this._caption = (v === null || v === undefined) ? v :
-					toHtmlStr(this.node, v);
+				if (!c) {
+					c = this.ownerDocument.createElement('figcaption');
+					this.node.appendChild(c);
+				}
+				c.innerHTML = toHtmlStr(c, v);
 				this.update();
 			}
-		},
-	},
+		} else {
+			this._caption = (v === null || v === undefined) ? v :
+				toHtmlStr(this.node, v);
+			this.update();
+		}
+	}
 
-	_children: {
-		value: function() {
-			var c = this.caption;
-			return c ? [ c ] : [];
-		},
-	},
-});
+	_children() {
+		const c = this.caption;
+		return c ? [ c ] : [];
+	}
+}
 /**
  * @ignore
  * @static
@@ -945,27 +867,23 @@ PMedia._selector = 'figure,[typeof~="mw:Image"]';
  * @private
  * @inheritdoc PNode#constructor
  */
-PTag = function PTag(pdoc, parent, node, opts) {
-	PNode.call(this, pdoc, parent, node, opts);
-};
-util.inherits(PTag, PNode);
-Object.defineProperties(PTag.prototype, {
+class PTag extends PNode {
+
 	/**
 	 * The name of the tag, in lowercase.
 	 */
-	tagName: {
-		get: function() { return this.node.tagName.toLowerCase(); },
-	},
+	get tagName() { return this.node.tagName.toLowerCase(); }
 
 	/**
 	 * The contents of the tag, as a {@PNodeList} object.
 	 * You can assign a String, Node, or PNodeList to mutate the contents.
-	 * @property {PNodeList}
+	 * @prop {PNodeList}
 	 */
-	contents: innerAccessor,
+	get contents() { return innerAccessorGet(this); }
+	set contents(v) { innerAccessorSet(this, v); }
 
-	_children: { value: function() { return [this.contents]; } },
-});
+	_children() { return [this.contents]; }
+}
 /**
  * @ignore
  * @static
@@ -987,70 +905,66 @@ PTag._selector = '*'; // any otherwise-unmatched element
  * @param {number} which A single {@link Node} can represent multiple
  *   templates; this parameter serves to distinguish them.
  */
-PTemplate = function PTemplate(pdoc, parent, node, which) {
-	PNode.call(this, pdoc, parent, node, {
-		wtsNodes: function() {
-			// Templates are actually a collection of nodes.
-			return this.parent._querySelectorAll('[about="' + this.node.getAttribute('about') + '"]');
-		},
-	});
-	this.which = which;
-	this._cachedParams = Object.create(null);
-};
-util.inherits(PTemplate, PNode);
-Object.defineProperties(PTemplate.prototype, {
-	_template: {
-		get: function() {
-			return this.dataMw.parts[this.which];
-		},
-		set: function(v) {
-			var dmw = this.dataMw;
-			dmw.parts[this.which] = v;
-			this.dataMw = dmw;
-		},
-	},
+class PTemplate extends PNode {
+	constructor(pdoc, parent, node, which) {
+		super(pdoc, parent, node, {
+			wtsNodes: function() {
+				// Templates are actually a collection of nodes.
+				return this.parent._querySelectorAll('[about="' + this.node.getAttribute('about') + '"]');
+			},
+		});
+		this.which = which;
+		this._cachedParams = Object.create(null);
+	}
+
+	get _template() {
+		return this.dataMw.parts[this.which];
+	}
+	set _template(v) {
+		const dmw = this.dataMw;
+		dmw.parts[this.which] = v;
+		this.dataMw = dmw;
+	}
+
 	/**
 	 * The name of the template, as a String.
 	 *
 	 * See: [T107194](https://phabricator.wikimedia.org/T107194)
-	 * @property {String}
+	 * @prop {string}
 	 */
-	name: {
-		get: function() {
-			// This should really be a PNodeList; see T107194
-			return this._template.template.target.wt;
-		},
-		set: function(v) {
-			var t = this._template;
-			t.template.target.wt = v;
-			t.template.target.href = './' +
-				this.pdoc.env.normalizedTitleKey('Template:' + v);
-			this._template = t;
-		},
-	},
+	get name() {
+		// This should really be a PNodeList; see T107194
+		return this._template.template.target.wt;
+	}
+	set name(v) {
+		const t = this._template;
+		t.template.target.wt = v;
+		t.template.target.href = './' +
+			this.pdoc.env.normalizedTitleKey('Template:' + v);
+		this._template = t;
+	}
+
 	/**
 	 * Test whether the name of this template matches a given string, after
 	 * normalizing titles.
-	 * @param {String} name The template name to test against.
-	 * @return {Boolean}
+	 * @param {string} name The template name to test against.
+	 * @return {boolean}
 	 */
-	nameMatches: {
-		value: function(name) {
-			var href = './' + this.pdoc.env.normalizedTitleKey('Template:' + name);
-			return this._template.template.target.href === href;
-		},
-	},
+	nameMatches(name) {
+		const href = './' + this.pdoc.env.normalizedTitleKey('Template:' + name);
+		return this._template.template.target.href === href;
+	}
+
 	/**
 	 * The parameters supplied to this template.
-	 * @property {PTemplate.Parameter[]}
+	 * @prop {PTemplate.Parameter[]}
 	 */
-	params: {
-		get: function() {
-			return Object.keys(this._template.template.params).sort().map(function(k) {
-				return this.get(k);
-			}, this);
-		},
-	},
+	get params() {
+		return Object.keys(this._template.template.params).sort().map((k) => {
+			return this.get(k);
+		});
+	}
+
 	/**
 	 * Return `true` if any parameter in the template is named `name`.
 	 * With `ignoreEmpty`, `false` will be returned even if the template
@@ -1058,40 +972,38 @@ Object.defineProperties(PTemplate.prototype, {
 	 * (ie, only contains whitespace).  Note that a template may have
 	 * multiple parameters with the same name, but only the last one is
 	 * read by Parsoid (and the MediaWiki parser).
-	 * @param {String|PTemplate.Parameter} name
+	 * @param {string|PTemplate.Parameter} name
 	 * @param {Object} [opts]
-	 * @param {Boolean} [opts.ignoreEmpty=false]
+	 * @param {boolean} [opts.ignoreEmpty=false]
 	 */
-	has: {
-		value: function(name, opts) {
-			if (name instanceof PTemplate.Parameter) {
-				name = name.name;
-			}
-			var t = this._template.template;
-			return Object.prototype.hasOwnProperty.call(t.params, name) && (
-				(opts && opts.ignoreEmpty) ?
-					!/^\s*$/.test(t.params[name].html) : true
-			);
-		},
-	},
+	has(name, opts) {
+		if (name instanceof PTemplate.Parameter) {
+			name = name.name;
+		}
+		const t = this._template.template;
+		return Object.prototype.hasOwnProperty.call(t.params, name) && (
+			(opts && opts.ignoreEmpty) ?
+				!/^\s*$/.test(t.params[name].html) : true
+		);
+	}
+
 	/**
 	 * Add a parameter to the template with a given `name` and `value`.
 	 * If `name` is already a parameter in the template, we'll replace
 	 * its value.
-	 * @param {String|PTemplate.Parameter} name
-	 * @param {String|Node|PNodeList} value
+	 * @param {string|PTemplate.Parameter} name
+	 * @param {string|Node|PNodeList} value
 	 */
-	add: {
-		value: function(k, v) {
-			if (k instanceof PTemplate.Parameter) {
-				k = k.name;
-			}
-			var t = this._template;
-			var html = toHtmlStr(this.node, v);
-			t.template.params[k] = { html: html };
-			this._template = t;
-		},
-	},
+	add(name, value) {
+		if (name instanceof PTemplate.Parameter) {
+			name = name.name;
+		}
+		const t = this._template;
+		const html = toHtmlStr(this.node, value);
+		t.template.params[name] = { html: html };
+		this._template = t;
+	}
+
 	/**
 	 * Remove a parameter from the template with the given `name`.
 	 * If `keepField` is `true`, we will keep the parameter's name but
@@ -1099,61 +1011,55 @@ Object.defineProperties(PTemplate.prototype, {
 	 * *unless* other parameters are dependent on it (e.g. removing
 	 * `bar` from `{{foo|bar|baz}}` is unsafe because `{{foo|baz}}` is
 	 * not what we expected, so `{{foo||baz}}` will be produced instead).
-	 * @param {String|PTemplate.Parameter} name
+	 * @param {string|PTemplate.Parameter} name
 	 * @param {Object} [opts]
-	 * @param {Boolean} [opts.keepField=false]
+	 * @param {boolean} [opts.keepField=false]
 	 */
-	remove: {
-		value: function(k, opts) {
-			if (k instanceof PTemplate.Parameter) {
-				k = k.name;
-			}
-			var t = this._template;
-			var keepField = opts && opts.keepField;
-			// if this is a numbered template, force keepField if there
-			// are subsequent numbered templates.
-			var isNumeric = (String(+k) === String(k));
-			if (isNumeric && this.has(1 + (+k))) {
-				keepField = true;
-			}
-			if (keepField) {
-				t.template.params[k] = { html: '' };
-			} else {
-				delete t.template.params[k];
-			}
-			this._template = t;
-		},
-	},
+	remove(name, opts) {
+		if (name instanceof PTemplate.Parameter) {
+			name = name.name;
+		}
+		const t = this._template;
+		let keepField = opts && opts.keepField;
+		// if this is a numbered template, force keepField if there
+		// are subsequent numbered templates.
+		const isNumeric = (String(+name) === String(name));
+		if (isNumeric && this.has(1 + (+name))) {
+			keepField = true;
+		}
+		if (keepField) {
+			t.template.params[name] = { html: '' };
+		} else {
+			delete t.template.params[name];
+		}
+		this._template = t;
+	}
 
 	/**
 	 * Get the parameter whose name is `name`.
-	 * @param {String|PTemplate.Parameter} name
+	 * @param {string|PTemplate.Parameter} name
 	 * @return {PTemplate.Parameter} The parameter record.
 	 */
-	get: {
-		value: function(k) {
-			if (k instanceof PTemplate.Parameter) {
-				k = k.name;
-			}
-			if (!this._cachedParams[k]) {
-				this._cachedParams[k] = new PTemplate.Parameter(this, k);
-			}
-			return this._cachedParams[k];
-		},
-	},
+	get(name) {
+		if (name instanceof PTemplate.Parameter) {
+			name = name.name;
+		}
+		if (!this._cachedParams[name]) {
+			this._cachedParams[name] = new PTemplate.Parameter(this, name);
+		}
+		return this._cachedParams[name];
+	}
 
-	_children: {
-		value: function() {
-			var result = [];
-			this.params.forEach(function(k) {
-				var p = this.get(k);
-				if (p.key) { result.push(p.key); }
-				result.push(p.value);
-			}, this);
-			return result;
-		},
-	},
-});
+	_children() {
+		const result = [];
+		this.params.forEach((k) => {
+			const p = this.get(k);
+			if (p.key) { result.push(p.key); }
+			result.push(p.value);
+		});
+		return result;
+	}
+}
 /**
  * @ignore
  * @static
@@ -1178,99 +1084,92 @@ PTemplate._selector = '[typeof~="mw:Transclusion"]';
  * @param {PTemplate} parent The parent template for this parameter.
  * @param {string} k The parameter name.
  */
-PTemplate.Parameter = function Parameter(parent, k) {
-	var doc = parent.ownerDocument;
-	var param = parent._template.template.params[k];
-	var valDiv = doc.createElement('div');
-	valDiv.innerHTML = param.html;
-	this._name = k;
-	this._value = new PNodeList(parent.pdoc, parent, valDiv, {
-		update: function() {
-			var t = this.parent._template;
-			delete t.template.params[k].wt;
-			t.template.params[k].html = this.container.innerHTML;
-			this.parent._template = t;
-		},
-	});
-	var keyDiv = doc.createElement('div');
-	this._key = new PNodeList(parent.pdoc, parent, keyDiv, {
-		update: function() {
-			var t = this.parent._template;
-			if (this._hasKey) {
-				if (!t.template.params[k].key) {
-					t.template.params[k].key = {};
+PTemplate.Parameter = class Parameter {
+	constructor(parent, k) {
+		const doc = parent.ownerDocument;
+		const param = parent._template.template.params[k];
+		const valDiv = doc.createElement('div');
+		valDiv.innerHTML = param.html;
+		this._name = k;
+		this._value = new PNodeList(parent.pdoc, parent, valDiv, {
+			update: function() {
+				const t = this.parent._template;
+				delete t.template.params[k].wt;
+				t.template.params[k].html = this.container.innerHTML;
+				this.parent._template = t;
+			},
+		});
+		const keyDiv = doc.createElement('div');
+		this._key = new PNodeList(parent.pdoc, parent, keyDiv, {
+			update: function() {
+				const t = this.parent._template;
+				if (this._hasKey) {
+					if (!t.template.params[k].key) {
+						t.template.params[k].key = {};
+					}
+					delete t.template.params[k].key.wt;
+					t.template.params[k].key.html = this.container.innerHTML;
+				} else {
+					delete t.template.params[k].key;
 				}
-				delete t.template.params[k].key.wt;
-				t.template.params[k].key.html = this.container.innerHTML;
-			} else {
-				delete t.template.params[k].key;
-			}
-			this.parent._template = t;
-		},
-	});
-	if (param.key && param.key.html) {
-		// T106852 means this doesn't always work.
-		keyDiv.innerHTML = param.key.html;
-		this._key._hasKey = true;
+				this.parent._template = t;
+			},
+		});
+		if (param.key && param.key.html) {
+			// T106852 means this doesn't always work.
+			keyDiv.innerHTML = param.key.html;
+			this._key._hasKey = true;
+		}
 	}
-};
-Object.defineProperties(PTemplate.Parameter.prototype, {
+
 	/**
-	 * @property {String} name
+	 * @prop {string} name
 	 *   The expanded parameter name.
 	 *   Unnamed parameters are given numeric indexes.
 	 * @readonly
 	 */
-	name: { get: function() { return this._name; } },
+	get name() { return this._name; }
+
 	/**
-	 * @property {PNodeList|null} key
+	 * @prop {PNodeList|null} key
 	 *   Source nodes corresponding to the parameter name.
 	 *   For example, in `{{echo|{{echo|1}}=hello}}` the parameter name
 	 *   is `"1"`, but the `key` field would contain the `{{echo|1}}`
 	 *   template invocation, as a {@link PNodeList}.
 	 */
-	key: {
-		get: function() { return this._key._hasKey ? this._key : null; },
-		set: function(v) {
-			if (v === null || v === undefined) {
-				this._key.container.innerHTML = '';
-				this._key._hasKey = false;
-			} else {
-				this._key.container.innerHTML =
-					toHtmlStr(this._key.container, v);
-			}
-			this._key.update();
-		},
-	},
+	get key() { return this._key._hasKey ? this._key : null; }
+	set	key(v) {
+		if (v === null || v === undefined) {
+			this._key.container.innerHTML = '';
+			this._key._hasKey = false;
+		} else {
+			this._key.container.innerHTML =
+				toHtmlStr(this._key.container, v);
+		}
+		this._key.update();
+	}
+
 	/**
-	 * @property {PNodeList} value
+	 * @prop {PNodeList} value
 	 *    The parameter value.
 	 */
-	value: {
-		get: function() { return this._value; },
-		set: function(v) {
-			this._value.container.innerHTML =
-				toHtmlStr(this._value.container, v);
-			this._value.update();
-		},
-	},
-	toWikitext: {
-		value: Promise.method(function() {
-			var k = this.key;
-			return Promise.join(
-				k ? k.toWikitext() : this.name,
-				this.value.toWikitext()
-			).spread(function(keyWikitext, valueWikitext) {
-				return keyWikitext + '=' + valueWikitext;
-			});
-		}),
-	},
-	toString: {
-		value: function() {
-			var k = this.key;
-			return (k ? String(k) : this.name) + '=' + String(this.value);
-		},
-	},
+	get value() { return this._value; }
+	set value(v) {
+		this._value.container.innerHTML =
+			toHtmlStr(this._value.container, v);
+		this._value.update();
+	}
+
+	toString() {
+		const k = this.key;
+		return (k ? String(k) : this.name) + '=' + String(this.value);
+	}
+};
+PTemplate.Parameter.prototype.toWikitext = Promise.async(function *() {
+	const k = this.key;
+	const keyWikitext = k ? (yield k.toWikitext()) : this.name;
+	const valueWikitext = yield this.value.toWikitext();
+	return `${keyWikitext}=${valueWikitext}`;
 });
 
 /**
@@ -1281,38 +1180,30 @@ Object.defineProperties(PTemplate.Parameter.prototype, {
  * @private
  * @inheritdoc PNode#constructor
  */
-PText = function PText(pdoc, parent, node, opts) {
-	PNode.call(this, pdoc, parent, node, opts);
-};
-util.inherits(PText, PNode);
-Object.defineProperties(PText.prototype, {
+class PText extends PNode {
+
 	/**
 	 * The actual text itself.
-	 * @property {String}
+	 * @prop {string}
 	 */
-	value: {
-		get: function() {
-			return this.node.data;
-		},
-		set: function(v) {
-			this.node.data = v;
-			this.update();
-		},
-	},
+	get value() {
+		return this.node.data;
+	}
+	set value(v) {
+		this.node.data = v;
+		this.update();
+	}
+
 	/**
 	 * Extends {@link PNode#matches} to allow a target string to match
 	 * if it matches this node's #value.
-	 * @method
 	 * @inheritdoc PNode#matches
-	 * @param {Node|PNode|String} target
+	 * @param {Node|PNode|string} target
 	 */
-	matches: {
-		value: function(target) {
-			return PNode.prototype.matches.call(this, target) ||
-				this.value === target;
-		},
-	},
-});
+	matches(target) {
+		return super.matches(target) || this.value === target;
+	}
+}
 /**
  * @ignore
  * @static
@@ -1328,36 +1219,33 @@ PText._selector = 'TEXT'; // non-standard selector
  * @private
  * @inheritdoc PNode#constructor
  */
-PWikiLink = function PWikiLink(pdoc, parent, node, opts) {
-	PNode.call(this, pdoc, parent, node, opts);
-};
-util.inherits(PWikiLink, PNode);
-Object.defineProperties(PWikiLink.prototype, {
+class PWikiLink extends PNode {
+
 	/**
 	 * The title of the linked page.
-	 * @property {String}
+	 * @prop {string}
 	 */
-	title: {
+	get title() {
 		// XXX url should be a PNodeList, but that requires handling
 		// typeof="mw:ExpandedAttrs"
-		get: function() {
-			return this.node.getAttribute('href').replace(/^.\//, '');
-		},
-		set: function(v) {
-			var href = './' + this.pdoc.env.normalizedTitleKey(v);
-			this.node.setAttribute('href', href);
-			this.update();
-		},
-	},
+		return this.node.getAttribute('href').replace(/^.\//, '');
+	}
+	set title(v) {
+		const href = './' + this.pdoc.env.normalizedTitleKey(v);
+		this.node.setAttribute('href', href);
+		this.update();
+	}
+
 	/**
 	 * The text to display, as a {@link PNodeList}.
 	 * You can assign a String, Node, or PNodeList to mutate the text.
-	 * @property {PNodeList}
+	 * @prop {PNodeList}
 	 */
-	text: innerAccessor,
+	get text() { return innerAccessorGet(this); }
+	set text(v) { innerAccessorSet(this, v); }
 
-	_children: { value: function() { return [this.text]; } },
-});
+	_children() { return [this.text]; }
+}
 /**
  * @ignore
  * @static
@@ -1373,62 +1261,56 @@ PWikiLink._selector = 'a[rel="mw:WikiLink"]';
  * (via {@link #toWikitext}).
  * @class
  * @extends PNodeList
- * @alternateClassName Parsoid.PDoc
  */
-var PDoc = function PDoc(env, doc) {
-	PNodeList.call(this, this, null, doc.body);
-	this.env = env;
-};
-util.inherits(PDoc, PNodeList);
-Object.defineProperties(PDoc.prototype, {
+class PDoc extends PNodeList {
+	constructor(env, doc) {
+		super(null, null, doc.body);
+		this.pdoc = this;
+		this.env = env;
+	}
+
 	/**
 	 * An HTML {@link Document} representing article content conforming to the
 	 * [MediaWiki DOM specification](https://www.mediawiki.org/wiki/Parsoid/MediaWiki_DOM_spec).
-	 * @property {Document}
+	 * @prop {Document}
 	 */
-	document: {
-		get: function() { return this.container.ownerDocument; },
-		set: function(v) { this.container = v.body; },
-	},
+	get document() { return this.container.ownerDocument; }
+	set document(v) { this.container = v.body; }
+
 	/**
 	 * Return a string representing the entire document as
 	 * HTML conforming to the
 	 * [MediaWiki DOM specification](https://www.mediawiki.org/wiki/Parsoid/MediaWiki_DOM_spec).
 	 * @inheritdoc PNodeList#toHtml
-	 * @method
 	 */
-	toHtml: {
-		value: function() {
-			// document.outerHTML is a Parsoid-ism; real browsers don't define it.
-			var html = this.document.outerHTML;
-			if (!html) {
-				html = this.document.body.outerHTML;
-			}
-			return html;
-		},
-	},
-});
+	toHtml() {
+		// document.outerHTML is a Parsoid-ism; real browsers don't define it.
+		let html = this.document.outerHTML;
+		if (!html) {
+			html = this.document.body.outerHTML;
+		}
+		return html;
+	}
+}
 
 // Promise-using REPL, for easier debugging.
 // We also handle `yield`, at least in common cases.
-var repl = function() {
-	/* jshint evil:true */
-	// The older version of jshint on jenkins is confused.
-	var Parsoid = require('../');
+const repl = function() {
+	const Parsoid = require('./');
 	console.log('Parsoid REPL', Parsoid.version);
-	var r = require('repl').start({ ignoreUndefined: true });
-	// `var Parsoid = require('parsoid');` by default.
+	const r = require('repl').start({ ignoreUndefined: true });
+	// `let Parsoid = require('parsoid');` by default.
 	r.context.Parsoid = Parsoid;
-	// `var Promise = require('prfun');` by default.
+	// `let Promise = require('prfun');` by default.
 	r.context.Promise = Promise;
 	// Patch the `eval` method to wait for Promises to be resolved.
-	var oldEval = r.eval;
+	const oldEval = r.eval;
 	r.eval = function(cmd, context, filename, callback) {
 		// If `cmd` mentions `yield`, wrap it in a `function*`
 		if (/\byield\b/.test(cmd)) {
 			// Hack to support `var xyz = yield pdq...;`, convert it
 			// to `var xyz; ...{ xyz = yield pdq...; }...`
-			var m = /^(var\s+)(\w+)\s*=/.exec(cmd);
+			var m = /^((?:var|let)\s+)(\w+)\s*=/.exec(cmd);
 			if (m) { cmd = cmd.slice(m[1].length); }
 			cmd = 'Promise.async(function*(){' + cmd + '})();';
 			if (m) { cmd = m[1] + m[2] + ';' + cmd; }
@@ -1448,20 +1330,20 @@ var repl = function() {
 };
 
 module.exports = {
-	PDoc: PDoc,
-	PNodeList: PNodeList,
-	PNode: PNode,
-	PComment: PComment,
-	PExtLink: PExtLink,
-	PHeading: PHeading,
-	PHtmlEntity: PHtmlEntity,
-	PMedia: PMedia,
-	PTag: PTag,
-	PTemplate: PTemplate,
-	PText: PText,
-	PWikiLink: PWikiLink,
+	PDoc,
+	PNodeList,
+	PNode,
+	PComment,
+	PExtLink,
+	PHeading,
+	PHtmlEntity,
+	PMedia,
+	PTag,
+	PTemplate,
+	PText,
+	PWikiLink,
 	// Helper function for `Promise.map`
-	toWikitext: Promise.method(function(n) { return n.toWikitext(); }),
+	toWikitext: Promise.async(function *(n) { return (yield n.toWikitext()); }),
 	// Useful REPL that handles promises and `yield` well.
-	repl: repl,
+	repl,
 };
