@@ -140,8 +140,8 @@ is resolved).
 [`prfun`]: https://github.com/cscott/prfun
 [ES6 generators]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/function*
 [`Promise`]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise
-[Parsoid DOM]: http://www.mediawiki.org/wiki/Parsoid/MediaWiki_DOM_spec
-[MediaWiki DOM spec]: http://www.mediawiki.org/wiki/Parsoid/MediaWiki_DOM_spec
+[Parsoid DOM]: https://www.mediawiki.org/wiki/Specs/HTML
+[MediaWiki DOM spec]: https://www.mediawiki.org/wiki/Specs/HTML
 [`domino`]: https://www.npmjs.com/package/domino
 
 License

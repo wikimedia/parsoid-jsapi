@@ -89,20 +89,20 @@ const toHtmlStr = function(node, v) {
  * modify the nodes.  The `filter()` series of functions is very
  * useful for extracting and iterating over, for example, all
  * of the templates in the project (via {@link #filterTemplates}).
- * @class PNodeList
- * @constructor
- * @private
- * @param {PDoc} pdoc The parent document for this {@link PNodeList}.
- * @param {PNode|null} parent A {@link PNode} which will receive updates
- *    when this {@link PNodeList} is mutated.
- * @param {Node} container A DOM {@link Node} which is the parent of all
- *    of the DOM {@link Node}s in this {@link PNodeList}.  The container
- *    element itself is *not* considered part of the list.
- * @param {Object} [opts]
- * @param {Function} [opts.update]
- *    A function which will be invoked when {@link #update} is called.
  */
 class PNodeList {
+	/**
+	 * @private
+	 * @param {PDoc} pdoc The parent document for this {@link PNodeList}.
+	 * @param {PNode|null} parent A {@link PNode} which will receive updates
+	 *    when this {@link PNodeList} is mutated.
+	 * @param {Node} container A DOM {@link Node} which is the parent of all
+	 *    of the DOM {@link Node}s in this {@link PNodeList}.  The container
+	 *    element itself is *not* considered part of the list.
+	 * @param {Object} [opts]
+	 * @param {Function} [opts.update]
+	 *    A function which will be invoked when {@link #update} is called.
+	 */
 	constructor(pdoc, parent, container, opts) {
 		this.pdoc = pdoc;
 		this.parent = parent;
@@ -245,7 +245,9 @@ class PNodeList {
 	/**
 	 * Return an array of {@link PComment} representing comments
 	 * found in this {@link PNodeList}.
-	 * @inheritdoc #_filter
+	 * @param {Object} [opts]
+	 * @param {boolean} [opts.recursive]
+	 *    Set to `false` to avoid recursing into templates.
 	 * @return {PComment[]}
 	 */
 	filterComments(opts) {
@@ -257,7 +259,9 @@ class PNodeList {
 	/**
 	 * Return an array of {@link PExtLink} representing external links
 	 * found in this {@link PNodeList}.
-	 * @inheritdoc #_filter
+	 * @param {Object} [opts]
+	 * @param {boolean} [opts.recursive]
+	 *    Set to `false` to avoid recursing into templates.
 	 * @return {PExtLink[]}
 	 */
 	filterExtLinks(opts) {
@@ -269,7 +273,9 @@ class PNodeList {
 	/**
 	 * Return an array of {@link PHeading} representing headings
 	 * found in this {@link PNodeList}.
-	 * @inheritdoc #_filter
+	 * @param {Object} [opts]
+	 * @param {boolean} [opts.recursive]
+	 *    Set to `false` to avoid recursing into templates.
 	 * @return {PHeading[]}
 	 */
 	filterHeadings(opts) {
@@ -281,7 +287,9 @@ class PNodeList {
 	/**
 	 * Return an array of {@link PHtmlEntity} representing HTML entities
 	 * found in this {@link PNodeList}.
-	 * @inheritdoc #_filter
+	 * @param {Object} [opts]
+	 * @param {boolean} [opts.recursive]
+	 *    Set to `false` to avoid recursing into templates.
 	 * @return {PHtmlEntity[]}
 	 */
 	filterHtmlEntities(opts) {
@@ -293,7 +301,9 @@ class PNodeList {
 	/**
 	 * Return an array of {@link PMedia} representing images or other
 	 * media content found in this {@link PNodeList}.
-	 * @inheritdoc #_filter
+	 * @param {Object} [opts]
+	 * @param {boolean} [opts.recursive]
+	 *    Set to `false` to avoid recursing into templates.
 	 * @return {PMedia[]}
 	 */
 	filterMedia(opts) {
@@ -305,7 +315,9 @@ class PNodeList {
 	/**
 	 * Return an array of {@link PSection} representing sections
 	 * found in this {@link PNodeList}.
-	 * @inheritdoc #_filter
+	 * @param {Object} [opts]
+	 * @param {boolean} [opts.recursive]
+	 *    Set to `false` to avoid recursing into templates.
 	 * @return {PSection[]}
 	 */
 	filterSections(opts) {
@@ -317,7 +329,9 @@ class PNodeList {
 	/**
 	 * Return an array of {@link PTemplate} representing templates
 	 * found in this {@link PNodeList}.
-	 * @inheritdoc #_filter
+	 * @param {Object} [opts]
+	 * @param {boolean} [opts.recursive]
+	 *    Set to `false` to avoid recursing into templates.
 	 * @return {PTemplate[]}
 	 */
 	filterTemplates(opts) {
@@ -327,7 +341,9 @@ class PNodeList {
 	/**
 	 * Return an array of {@link PText} representing plain text
 	 * found in this {@link PNodeList}.
-	 * @inheritdoc #_filter
+	 * @param {Object} [opts]
+	 * @param {boolean} [opts.recursive]
+	 *    Set to `false` to avoid recursing into templates.
 	 * @return {PText[]}
 	 */
 	filterText(opts) {
@@ -339,7 +355,9 @@ class PNodeList {
 	/**
 	 * Return an array of {@link PWikiLink} representing wiki links
 	 * found in this {@link PNodeList}.
-	 * @inheritdoc #_filter
+	 * @param {Object} [opts]
+	 * @param {boolean} [opts.recursive]
+	 *    Set to `false` to avoid recursing into templates.
 	 * @return {PWikiLink[]}
 	 */
 	filterWikiLinks(opts) {
@@ -484,20 +502,35 @@ class PNodeList {
 	toString() {
 		return toStringHelper(this.nodes);
 	}
+
+	/**
+	 * Create a {@link PNodeList} from a string containing HTML.
+	 * @return {PNodeList}
+	 */
+	static fromHTML(pdoc, html) {
+		const div = pdoc.document.createElement('div');
+		div.innerHTML = html;
+		return new PNodeList(pdoc, null, div);
+	}
+
+	/**
+	 * Create a {@link PNodeList} belonging to the given {@link PDoc}
+	 * from a string containing wikitext.
+	 * @param {PDoc} pdoc
+	 *   The {@link PDoc} which will own the result.
+	 * @param {string} wikitext
+	 *   The wikitext to convert.
+	 * @param {Object} options
+	 *   Options which are passed to {@link Parsoid#parse}.
+	 * @return {Promise}
+	 *    Fulfilled by a {@link PNodeList} representing the given wikitext.
+	 */
+	static fromWikitext(pdoc, wikitext, options) {
+		throw new Error("Implemented elsewhere.");
+	}
 }
-/**
- * Create a {@link PNodeList} from a string containing HTML.
- * @return {PNodeList}
- * @static
- */
-PNodeList.fromHTML = function(pdoc, html) {
-	const div = pdoc.document.createElement('div');
-	div.innerHTML = html;
-	return new PNodeList(pdoc, null, div);
-};
 
 /**
- * @class PNode
  * A PNode represents a specific DOM {@link Node}.  Its subclasses provide
  * specific accessors and mutators for associated semantic information.
  *
@@ -513,20 +546,21 @@ PNodeList.fromHTML = function(pdoc, html) {
  * - {@link PTemplate}: templates, like `{{foo|bar}}`
  * - {@link PText}: unformatted text, like `foo`
  * - {@link PWikiLink}: wiki links, like `[[Foo|bar]]`
- * @constructor
- * @private
- * @param {PDoc} pdoc The parent document for this PNode.
- * @param {PNodeList|null} parent A containing node list which will receive
- *    updates when this {@link PNode} is mutated.
- * @param {Node} node The DOM node.
- * @param {Object} [opts]
- * @param {Function} [opts.update]
- *   A function which will be invoked when {@link #update} is called.
- * @param {Function} [opts.wtsNodes]
- *   A function returning an array of {@link Node}s which can tweak the
- *   portion of the document serialized by {@link #toWikitext}.
  */
 class PNode {
+	/**
+	 * @private
+	 * @param {PDoc} pdoc The parent document for this PNode.
+	 * @param {PNodeList|null} parent A containing node list which will receive
+	 *    updates when this {@link PNode} is mutated.
+	 * @param {Node} node The DOM node.
+	 * @param {Object} [opts]
+	 * @param {Function} [opts.update]
+	 *   A function which will be invoked when {@link #update} is called.
+	 * @param {Function} [opts.wtsNodes]
+	 *   A function returning an array of {@link Node}s which can tweak the
+	 *   portion of the document serialized by {@link #toWikitext}.
+	 */
 	constructor(pdoc, parent, node, opts) {
 		/** @prop {PDoc} pdoc The parent document for this {@link PNode}. */
 		this.pdoc = pdoc;
@@ -581,7 +615,7 @@ class PNode {
 	}
 
 	/**
-	 * @inheritdoc PNodeList#toHtml
+	 * @inheritdoc
 	 */
 	toHtml() {
 		const nodes = this._wtsNodes ? this._wtsNodes() : [ this.node ];
@@ -589,7 +623,7 @@ class PNode {
 	}
 
 	/**
-	 * @inheritdoc PNodeList#toWikitext
+	 * @inheritdoc
 	 */
 	toWikitext() {
 		const nodes = this._wtsNodes ? this._wtsNodes() : [ this.node ];
@@ -597,7 +631,7 @@ class PNode {
 	}
 
 	/**
-	 * @inheritdoc PNodeList#toString
+	 * @inheritdoc
 	 */
 	toString() {
 		const nodes = this._wtsNodes ? this._wtsNodes() : [ this.node ];
@@ -618,11 +652,7 @@ const innerAccessorSet = function(self, v) {
  * PTag represents any otherwise-unmatched tag.  This includes
  * HTML-style tags in wikicode, like `<span>`, as well as some
  * "invisible" tags like `<p>`.
- * @class PTag
  * @extends PNode
- * @constructor
- * @private
- * @inheritdoc PNode#constructor
  */
 class PTag extends PNode {
 
@@ -650,11 +680,7 @@ PTag._selector = '*'; // any otherwise-unmatched element
 
 /**
  * PComment represents a hidden HTML comment, like `<!-- fobar -->`.
- * @class PComment
  * @extends PNode
- * @constructor
- * @private
- * @inheritdoc PNode#constructor
  */
 class PComment extends PNode {
 
@@ -679,11 +705,7 @@ PComment._selector = 'COMMENT'; // non-standard selector
 
 /**
  * PExtLink represents an external link, like `[http://example.com Example]`.
- * @class PExtLink
  * @extends PNode
- * @constructor
- * @private
- * @inheritdoc PNode#constructor
  */
 class PExtLink extends PNode {
 
@@ -726,11 +748,7 @@ PExtLink._selector = 'a[rel="mw:ExtLink"]';
 
 /**
  * PHeading represents a section heading in wikitext, like `== Foo ==`.
- * @class PHeading
  * @extends PNode
- * @constructor
- * @private
- * @inheritdoc PNode#constructor
  */
 class PHeading extends PNode {
 
@@ -782,11 +800,7 @@ PHeading._selector = 'h1,h2,h3,h4,h5,h6';
 
 /**
  * PHtmlEntity represents an HTML entity, like `&nbsp;`.
- * @class PHtmlEntity
  * @extends PNode
- * @constructor
- * @private
- * @inheritdoc PNode#constructor
  */
 class PHtmlEntity extends PNode {
 
@@ -804,7 +818,7 @@ class PHtmlEntity extends PNode {
 	/**
 	 * Extends {@link PNode#matches} to allow a target string to match
 	 * if it matches this node's #normalized character.
-	 * @inheritdoc PNode#matches
+	 * @inheritdoc
 	 * @param {Node|PNode|string} target
 	 */
 	matches(target) {
@@ -821,11 +835,7 @@ PHtmlEntity._selector = '[typeof="mw:Entity"]';
 /**
  * PMedia represents an image or audio/video element in wikitext,
  * like `[[File:Foobar.jpg|caption]]`.
- * @class PMedia
  * @extends PNode
- * @constructor
- * @private
- * @inheritdoc PNode#constructor
  */
 class PMedia extends PNode {
 
@@ -921,11 +931,7 @@ PMedia._selector = 'figure,[typeof~="mw:Image"]';
 
 /**
  * PSection represents an internal wikilink, like `[[Foo|Bar]]`.
- * @class PSection
  * @extends PTag
- * @constructor
- * @private
- * @inheritdoc PNode#constructor
  */
 class PSection extends PTag {
 
@@ -947,19 +953,18 @@ PSection._selector = 'section';
 
 /**
  * PTemplate represents a wikitext template, like `{{foo}}`.
- * @class PTemplate
  * @extends PNode
- * @constructor
- * @private
- * @inheritdoc PNode#constructor
- * @param {PDoc} pdoc The parent document for this PNode.
- * @param {PNodeList|null} parent A containing node list which will receive
- *    updates when this {@link PNode} is mutated.
- * @param {Node} node The DOM node.
- * @param {number} which A single {@link Node} can represent multiple
- *   templates; this parameter serves to distinguish them.
  */
 class PTemplate extends PNode {
+	/**
+	 * @private
+	 * @param {PDoc} pdoc The parent document for this PNode.
+	 * @param {PNodeList|null} parent A containing node list which will receive
+	 *    updates when this {@link PNode} is mutated.
+	 * @param {Node} node The DOM node.
+	 * @param {number} which A single {@link Node} can represent multiple
+	 *   templates; this parameter serves to distinguish them.
+	 */
 	constructor(pdoc, parent, node, which) {
 		super(pdoc, parent, node, {
 			wtsNodes: function() {
@@ -1122,23 +1127,22 @@ class PTemplate extends PNode {
 PTemplate._selector = '[typeof~="mw:Transclusion"]';
 
 /**
- * @class PTemplate.Parameter
- *
  * Represents a parameter of a template.
  *
  * For example, the template `{{foo|bar|spam=eggs}}` contains two
- * {@link PTemplate.Parameter}s: one whose #name is `"1"` and whose
- * whose #value is a {@link PNodeList} corresponding to `"bar"`, and one
- * whose #name is `"spam"` and whose #value is a {@link PNodeList}
+ * {@link PTemplate.Parameter}s: one whose {@link #name} is `"1"` and whose
+ * whose {@link #value} is a {@link PNodeList} corresponding to `"bar"`, and one
+ * whose {@link #name} is `"spam"` and whose {@link #value} is a {@link PNodeList}
  * corresponding to `"eggs"`.
  *
  * See: {@link PTemplate}
- * @constructor
- * @private
- * @param {PTemplate} parent The parent template for this parameter.
- * @param {string} k The parameter name.
  */
 PTemplate.Parameter = class Parameter {
+	/**
+	 * @private
+	 * @param {PTemplate} parent The parent template for this parameter.
+	 * @param {string} k The parameter name.
+	 */
 	constructor(parent, k) {
 		const doc = parent.ownerDocument;
 		const param = parent._template.template.params[k];
@@ -1177,19 +1181,19 @@ PTemplate.Parameter = class Parameter {
 	}
 
 	/**
-	 * @prop {string} name
-	 *   The expanded parameter name.
-	 *   Unnamed parameters are given numeric indexes.
+	 * The expanded parameter name.
+	 * Unnamed parameters are given numeric indexes.
+	 * @prop {string}
 	 * @readonly
 	 */
 	get name() { return this._name; }
 
 	/**
-	 * @prop {PNodeList|null} key
-	 *   Source nodes corresponding to the parameter name.
-	 *   For example, in `{{echo|{{echo|1}}=hello}}` the parameter name
-	 *   is `"1"`, but the `key` field would contain the `{{echo|1}}`
-	 *   template invocation, as a {@link PNodeList}.
+	 * Source nodes corresponding to the parameter name.
+	 * For example, in `{{echo|{{echo|1}}=hello}}` the parameter name
+	 * is `"1"`, but the `key` field would contain the `{{echo|1}}`
+	 * template invocation, as a {@link PNodeList}.
+	 * @prop {PNodeList|null}
 	 */
 	get key() { return this._key._hasKey ? this._key : null; }
 	set	key(v) {
@@ -1204,8 +1208,8 @@ PTemplate.Parameter = class Parameter {
 	}
 
 	/**
-	 * @prop {PNodeList} value
-	 *    The parameter value.
+	 * The parameter value.
+	 * @prop {PNodeList}
 	 */
 	get value() { return this._value; }
 	set value(v) {
@@ -1228,11 +1232,7 @@ PTemplate.Parameter.prototype.toWikitext = Promise.async(function *() {
 
 /**
  * PText represents ordinary unformatted text with no special properties.
- * @class PText
  * @extends PNode
- * @constructor
- * @private
- * @inheritdoc PNode#constructor
  */
 class PText extends PNode {
 
@@ -1251,7 +1251,7 @@ class PText extends PNode {
 	/**
 	 * Extends {@link PNode#matches} to allow a target string to match
 	 * if it matches this node's #value.
-	 * @inheritdoc PNode#matches
+	 * @inheritdoc
 	 * @param {Node|PNode|string} target
 	 */
 	matches(target) {
@@ -1267,11 +1267,7 @@ PText._selector = 'TEXT'; // non-standard selector
 
 /**
  * PWikiLink represents an internal wikilink, like `[[Foo|Bar]]`.
- * @class PWikiLink
  * @extends PNode
- * @constructor
- * @private
- * @inheritdoc PNode#constructor
  */
 class PWikiLink extends PNode {
 
@@ -1318,7 +1314,6 @@ PWikiLink._selector = 'a[rel="mw:WikiLink"]';
  * But it also provides means to serialize the document as either
  * HTML (via {@link #document} or {@link #toHtml}) or wikitext
  * (via {@link #toWikitext}).
- * @class
  * @extends PNodeList
  */
 class PDoc extends PNodeList {
@@ -1340,7 +1335,6 @@ class PDoc extends PNodeList {
 	 * Return a string representing the entire document as
 	 * HTML conforming to the
 	 * [MediaWiki DOM specification](https://www.mediawiki.org/wiki/Parsoid/MediaWiki_DOM_spec).
-	 * @inheritdoc PNodeList#toHtml
 	 */
 	toHtml() {
 		// document.outerHTML is a Parsoid-ism; real browsers don't define it.

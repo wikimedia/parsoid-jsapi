@@ -11,17 +11,16 @@ var JsApi = require('./jsapi.js');
  * Main entry point for Parsoid's JavaScript API.
  *
  * Note that Parsoid's main interface is actually a web API, as
- * defined by {@link ParsoidService} (and the files in the `api` directory).
+ * defined by {@link ParsoidService}.
  *
  * But some users would like to use Parsoid as a NPM package using
  * a native JavaScript API.  This file provides that, more-or-less.
  * It should be considered unstable.  Patches welcome.
  *
- * See `USAGE.md` and `./jsapi.js` for a useful wrapper API which works
+ * See `./jsapi.js` for a useful wrapper API which works
  * well with this interface.
  *
- * @class
- * @singleton
+ * @namespace
  */
 var Parsoid = module.exports = {
 	/** Name of the NPM package. */
@@ -109,7 +108,6 @@ Parsoid.parse = function(input, options, optCb) {
 
 // Add a helper method to PNodeList, based on Parsoid.parse.
 
-/** @class PNodeList */
 /**
  * Create a {@link PNodeList} belonging to the given {@link PDoc}
  * from a string containing wikitext.

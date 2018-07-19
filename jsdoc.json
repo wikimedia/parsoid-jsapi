@@ -38,6 +38,7 @@
                 "Node": "https://developer.mozilla.org/en-US/docs/Web/API/Node",
                 "Number": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number",
                 "Object": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object",
+                "ParsoidConfig": "https://doc.wikimedia.org/Parsoid/master/module-config_ParsoidConfig-ParsoidConfig.html",
                 "Promise": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise",
                 "RegExp": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp",
                 "Request": "http://expressjs.com/en/api.html#req",
