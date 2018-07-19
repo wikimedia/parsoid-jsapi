@@ -279,14 +279,20 @@ describe('Further examples of PDoc API', function() {
 		wt.should.equal("== '''bold''' ==\n");
 	}));
 	it('allows iteration using length and get()', Promise.async(function *() {
-		const text = '== 1 ==\n[http://example.com 2]<!-- 3 -->&nbsp;{{1x|4}} 5 [[Foo|6]]';
+		const text = 'zero\n== 1 ==\n[http://example.com 2]<!-- 3 -->&nbsp;{{1x|4}} 5 [[Foo|6]]';
 		const pdoc = yield Parsoid.parse(text, { pdoc: true });
-		pdoc.length.should.equal(3);
-		pdoc.get(0).should.be.instanceof(Parsoid.PHeading);
-		pdoc.get(1).should.be.instanceof(Parsoid.PText);
-		pdoc.get(2).should.be.instanceof(Parsoid.PTag);
-		pdoc.get(2).tagName.should.be.equal('p');
-		const paragraph = pdoc.get(2).contents;
+		pdoc.length.should.equal(2);
+		pdoc.get(0).should.be.instanceof(Parsoid.PSection);
+		pdoc.get(0).sectionId.should.equal(0);
+		pdoc.get(0).contents.get(0).tagName.should.equal('p');
+		pdoc.get(0).contents.get(0).node.textContent.should.equal('zero');
+		pdoc.get(1).should.be.instanceof(Parsoid.PSection);
+		pdoc.get(1).sectionId.should.equal(1);
+		pdoc.get(1).contents.get(0).should.be.instanceof(Parsoid.PHeading);
+		pdoc.get(1).contents.get(1).should.be.instanceof(Parsoid.PText);
+		pdoc.get(1).contents.get(2).should.be.instanceof(Parsoid.PTag);
+		pdoc.get(1).contents.get(2).tagName.should.be.equal('p');
+		const paragraph = pdoc.get(1).contents.get(2).contents;
 		paragraph.length.should.equal(6);
 		paragraph.get(0).should.be.instanceof(Parsoid.PExtLink);
 		paragraph.get(1).should.be.instanceof(Parsoid.PComment);
@@ -298,12 +304,13 @@ describe('Further examples of PDoc API', function() {
 		for (var i = 0; i < paragraph.length; i++) {
 			paragraph.indexOf(paragraph.get(i)).should.equal(i);
 			paragraph.indexOf(paragraph.get(i).node).should.equal(i);
-			pdoc.indexOf(paragraph.get(i), { recursive: true }).should.equal(2);
-			pdoc.indexOf(paragraph.get(i).node, { recursive: true }).should.equal(2);
+			pdoc.get(1).contents.indexOf(paragraph.get(i), { recursive: true }).should.equal(2);
+			pdoc.get(1).contents.indexOf(paragraph.get(i).node, { recursive: true }).should.equal(2);
 		}
 		// Test indexOf with strings
 		pdoc.indexOf(' 5 ').should.equal(-1);
-		pdoc.indexOf(' 5 ', { recursive: true }).should.equal(2);
+		pdoc.indexOf(' 5 ', { recursive: true }).should.equal(1);
+		pdoc.get(1).contents.indexOf(' 5 ', { recursive: true }).should.equal(2);
 		paragraph.indexOf(' 5 ').should.equal(4);
 		paragraph.indexOf('\u00A0').should.equal(2);
 	}));

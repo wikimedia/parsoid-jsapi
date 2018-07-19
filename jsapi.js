@@ -303,6 +303,18 @@ class PNodeList {
 	}
 
 	/**
+	 * Return an array of {@link PSection} representing sections
+	 * found in this {@link PNodeList}.
+	 * @inheritdoc #_filter
+	 * @return {PSection[]}
+	 */
+	filterSections(opts) {
+		return this._filter([], PSection._selector, (r, parent, node) => {
+			r.push(new PSection(parent.pdoc, parent, node));
+		}, opts);
+	}
+
+	/**
 	 * Return an array of {@link PTemplate} representing templates
 	 * found in this {@link PNodeList}.
 	 * @inheritdoc #_filter
@@ -372,7 +384,8 @@ class PNodeList {
 				}
 				// PTag is the catch-all; it should always be last.
 				const which = [
-					PExtLink, PHeading, PHtmlEntity, PMedia, PWikiLink,
+					PExtLink, PHeading, PHtmlEntity, PMedia,
+					PSection, PWikiLink,
 					PTag,
 				];
 				for (let j = 0; j < which.length; j++) {
@@ -495,6 +508,7 @@ PNodeList.fromHTML = function(pdoc, html) {
  * - {@link PHeading}: headings, like `== Section 1 ==`
  * - {@link PHtmlEntity}: html entities, like `&nbsp;`
  * - {@link PMedia}: images and media, like `[[File:Foo.jpg|caption]]`
+ * - {@link PSection}: section; wraps a PHeading and its contents
  * - {@link PTag}: other HTML tags, like `<span>`
  * - {@link PTemplate}: templates, like `{{foo|bar}}`
  * - {@link PText}: unformatted text, like `foo`
@@ -601,6 +615,40 @@ const innerAccessorSet = function(self, v) {
 };
 
 /**
+ * PTag represents any otherwise-unmatched tag.  This includes
+ * HTML-style tags in wikicode, like `<span>`, as well as some
+ * "invisible" tags like `<p>`.
+ * @class PTag
+ * @extends PNode
+ * @constructor
+ * @private
+ * @inheritdoc PNode#constructor
+ */
+class PTag extends PNode {
+
+	/**
+	 * The name of the tag, in lowercase.
+	 */
+	get tagName() { return this.node.tagName.toLowerCase(); }
+
+	/**
+	 * The contents of the tag, as a {@PNodeList} object.
+	 * You can assign a String, Node, or PNodeList to mutate the contents.
+	 * @prop {PNodeList}
+	 */
+	get contents() { return innerAccessorGet(this); }
+	set contents(v) { innerAccessorSet(this, v); }
+
+	_children() { return [this.contents]; }
+}
+/**
+ * @ignore
+ * @static
+ * @private
+ */
+PTag._selector = '*'; // any otherwise-unmatched element
+
+/**
  * PComment represents a hidden HTML comment, like `<!-- fobar -->`.
  * @class PComment
  * @extends PNode
@@ -638,6 +686,11 @@ PComment._selector = 'COMMENT'; // non-standard selector
  * @inheritdoc PNode#constructor
  */
 class PExtLink extends PNode {
+
+	/**
+	 * The name of the tag, in lowercase.
+	 */
+	get tagName() { return this.node.tagName.toLowerCase(); }
 
 	/**
 	 * The URL of the link target.
@@ -680,6 +733,11 @@ PExtLink._selector = 'a[rel="mw:ExtLink"]';
  * @inheritdoc PNode#constructor
  */
 class PHeading extends PNode {
+
+	/**
+	 * The name of the tag, in lowercase.
+	 */
+	get tagName() { return this.node.tagName.toLowerCase(); }
 
 	/**
 	 * The heading level, as an integer between 1 and 6 inclusive.
@@ -771,6 +829,11 @@ PHtmlEntity._selector = '[typeof="mw:Entity"]';
  */
 class PMedia extends PNode {
 
+	/**
+	 * The name of the tag, in lowercase.
+	 */
+	get tagName() { return this.node.tagName.toLowerCase(); }
+
 	// Internal helper: is the outer element a <figure> or a <span>?
 	get _isBlock() { return this.node.tagName === 'FIGURE'; }
 	// Internal helper: get at the 'caption' property in the dataMw
@@ -856,40 +919,31 @@ class PMedia extends PNode {
  */
 PMedia._selector = 'figure,[typeof~="mw:Image"]';
 
-
 /**
- * PTag represents any otherwise-unmatched tag.  This includes
- * HTML-style tags in wikicode, like `<span>`, as well as some
- * "invisible" tags like `<p>`.
- * @class PTag
- * @extends PNode
+ * PSection represents an internal wikilink, like `[[Foo|Bar]]`.
+ * @class PSection
+ * @extends PTag
  * @constructor
  * @private
  * @inheritdoc PNode#constructor
  */
-class PTag extends PNode {
+class PSection extends PTag {
 
 	/**
-	 * The name of the tag, in lowercase.
+	 * The section id. 0 is the lead section, negative numbers are used for
+	 * "pseudo-sections".
+	 * @prop {number}
 	 */
-	get tagName() { return this.node.tagName.toLowerCase(); }
-
-	/**
-	 * The contents of the tag, as a {@PNodeList} object.
-	 * You can assign a String, Node, or PNodeList to mutate the contents.
-	 * @prop {PNodeList}
-	 */
-	get contents() { return innerAccessorGet(this); }
-	set contents(v) { innerAccessorSet(this, v); }
-
-	_children() { return [this.contents]; }
+	get sectionId() {
+		return +this.node.getAttribute('data-mw-section-id');
+	}
 }
 /**
  * @ignore
  * @static
  * @private
  */
-PTag._selector = '*'; // any otherwise-unmatched element
+PSection._selector = 'section';
 
 /**
  * PTemplate represents a wikitext template, like `{{foo}}`.
@@ -1222,6 +1276,11 @@ PText._selector = 'TEXT'; // non-standard selector
 class PWikiLink extends PNode {
 
 	/**
+	 * The name of the tag, in lowercase.
+	 */
+	get tagName() { return this.node.tagName.toLowerCase(); }
+
+	/**
 	 * The title of the linked page.
 	 * @prop {string}
 	 */
@@ -1338,6 +1397,7 @@ module.exports = {
 	PHeading,
 	PHtmlEntity,
 	PMedia,
+	PSection,
 	PTag,
 	PTemplate,
 	PText,
