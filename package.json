@@ -7,6 +7,10 @@
     "domino": "^2.0.3",
     "parsoid": "^0.9.0"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wikimedia/parsoid-jsapi.git",
+  },
   "devDependencies": {
     "chai": "^4.1.2",
     "eslint": "^4.19.1",
